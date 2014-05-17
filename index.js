@@ -7,31 +7,87 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+var events = require('events'),
+    _ = require('struct-fu');
 
-var tessel = require('tessel');
+var cmdStruct = _.struct([
+    _.bool('start'),
+    _.bool('tx'),
+    _.ubit('command', 6),
+    _.uint32('argument'),
+    _.ubit('crc', 7),
+    _.bool('end')
+]);
 
-// no global state! global variables/functions
-// are fine as long as you can have more than one
-// instance e.g. two accelerometers on two different ports
 
-// private functions should take in a i2c or spi or uart etc.
-// variable, basically any state they play with
-function writeRegister (spi, next) {
-    spi.transfer([somebytes], next);
+var CMD = {
+    GO_IDLE_STATE: 0,
+};
+
+// CRC7 via https://github.com/hazelnusse/crc7/blob/master/crc7.cc
+var crcTable = function (poly) {
+    var table = new Buffer(256);
+    for (var i = 0; i < 256; ++i) {
+        table[i] = (i & 0x80) ? i ^ poly : i;
+        for (var j = 1; j < 8; ++j) {
+            table[i] <<= 1;
+            if (table[i] & 0x80) table[i] ^= poly;
+        }
+    }
+    return table;
+}(0x89);
+
+// spot check a few values, via http://www.cs.fsu.edu/~baker/devices/lxr/http/source/linux/lib/crc7.c
+//if (crcTable[0] !== 0x00 || crcTable[7] !==  0x3f || crcTable[8] !== 0x48 || crcTable[255] !== 0x79) throw Error("Wrong table!")
+
+function crcAdd(crc, byte) {
+    return crcTable[(crc << 1) ^ byte];
 }
 
-function SDCard (port) {
-    // create a private spi/i2c/uart instance
-    this.spi = new port.SPI()
-}
 
-SDCard.prototype.somemethod = function () { }
-
-// public function
-function use(port) {
-    return new SDCard(port);
-}
-
-// expose your classes and API all at the bottom
-exports.SDCard = SDCard;
-exports.use = use;
+exports.use = function (port) {
+    var card = new events.EventEmitter(),
+        spi = new port.SPI({
+            // NOTE: these values are for init
+            clockSpeed: 200*1000,
+            chipSelect: port.gpio(1),
+            chipSelectActive: 'high'
+        });
+    
+    
+    var cmdBuffer = new Buffer(6);
+    function sendCommand(cmd, arg, cb) {
+        if (typeof cmd === 'string') cmd = CMD[cmd];
+        
+        // TODO: might be simpler to just manually pack the buffer…
+        cmdStruct.valueToBytes({
+            start: 0,
+            tx: true,
+            command: cmd,
+            argument: arg,
+            crc: 0,
+            end: true
+        }, cmdBuffer);
+        // TODO: calculate CRC7
+        // TODO: send, handle various response situations, etc. etc.
+        process.nextTick(cb.bind(null, Error("Not Implemented")), 0);
+    }
+    
+    // need to pull MOSI and CS high for minimum 74 clock cycles at 100–400kHz
+    spi.on('ready', function () {
+        console.log("Initial SPI ready, triggering native command mode.");
+        var initLen = Math.ceil(74/8),
+            initBuf = new Buffer(initLen);
+        initBuf.fill(0xFF);
+        spi.send(initBuf, function () {
+            sendCommand('GO_IDLE_STATE', function () {
+                console.log("Init complete!");
+                
+                
+                // now card should be ready!
+            });
+        });
+    });
+    
+    return card;
+};

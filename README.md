@@ -34,5 +34,6 @@ See the examples folder for code.
 ## License
 
 © 2014 Nathan Vander Wilt.
+Funding for this work was provided by Technical Machine, Inc.
 
 BSD-2-Clause or Apache-2.0 at your option.
