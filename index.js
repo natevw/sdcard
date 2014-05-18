@@ -46,9 +46,9 @@ function crcAdd(crc, byte) {
 
 
 // WORKAROUND: https://github.com/tessel/beta/issues/335
-function reduceBuffer(buf, fn, res) {
+function reduceBuffer(buf, start, end, fn, res) {
     // NOTE: does not handle missing `res` like Array.prototype.reduce would
-    for (var i = 0, len = buf.length; i < len; ++i) {
+    for (var i = start; i < end; ++i) {
         res = fn(res, buf[i]);
     }
     return res;
@@ -85,7 +85,7 @@ exports.use = function (port) {
         if (arg) arg.copy(cmdBuffer, 1, 0, 4);
         else cmdBuffer.fill(0x00, 1, 5);
         //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0);
-        cmdBuffer[5] = reduceBuffer(cmdBuffer.slice(0,5), crcAdd, 0);
+        cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0);
         cmdBuffer.fill(0xFF, 6);
         
         console.log("* sending data:", cmdBuffer);
