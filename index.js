@@ -22,7 +22,11 @@ var cmdStruct = _.struct([
 */
 
 var CMD = {
-    GO_IDLE_STATE: {index:0},
+    GO_IDLE_STATE: {index:0, format:'r1'},
+};
+
+var RESP_LEN = {
+    r1: 1
 };
 
 // CRC7 via https://github.com/hazelnusse/crc7/blob/master/crc7.cc
@@ -73,7 +77,7 @@ exports.use = function (port) {
         spi.on('ready', cb);
     }
     
-    var cmdBuffer = new Buffer(6 + 1 + 8);
+    var cmdBuffer = new Buffer(6 + 8);              // Ncr
     function sendCommand(cmd, arg, cb) {
         if (typeof arg === 'function') {
             cb = arg;
@@ -91,7 +95,14 @@ exports.use = function (port) {
         console.log("* sending data:", cmdBuffer);
         spi.transfer(cmdBuffer, function (e,d) {
             console.log("TRANSFER RESULT", d);
-            cb.call(null, arguments);
+            
+            // response not sent until after command; it will start with a 0 bit
+            var i = 6,
+                l = RESP_LEN[command.format];
+            while (d[i] & 0x80) ++i;
+            d = d.slice(i, i+l);
+            if (d[0] & 0x7c) cb(Error("Error flag(s) set: "+d[0].toString(16)), d);
+            else cb(null, d);
         });
     }
     
@@ -103,12 +114,14 @@ exports.use = function (port) {
         initBuf.fill(0xFF);
         spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
             configureSPI('init', function () {
-                sendCommand('GO_IDLE_STATE', function () {
+                sendCommand('GO_IDLE_STATE', function (e,d) {
+                    if (e) throw e;         // TODO: how should we properly bail on this card?
                     console.log("Init complete, switching SPI to full speed.");
+                    // TODO: validate response
+                    // TODO: CMD8 next
                     configureSPI('fullspeed', function () {
                         // now card should be ready!
-                        console.log("Card should be ready.");
-                    
+                        console.log("FULL STEAM AHEAD");
                     });
                 });
             });
