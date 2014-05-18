@@ -17,6 +17,7 @@ var CMD = {
     SEND_IF_COND: {index:8, format:'r7'},
     READ_OCR: {index:58, format:'r3'},
     SET_BLOCKLEN: {index:16, format:'r1'},
+    READ_SINGLE_BLOCK: {index:17, format:'r1'},
     
     APP_CMD: {index:55, format:'r1'},
     APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
@@ -68,6 +69,8 @@ exports.use = function (port) {
     var card = new events.EventEmitter(),
         spi = null;         // re-initialized to various settings until card is ready
     
+    var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
+    
     function configureSPI(mode, cb) {           // 'pulse', 'init', 'fullspeed'
         var pin = port.digital[1],
             cfg = { chipSelect: pin };
@@ -81,6 +84,23 @@ exports.use = function (port) {
         //console.log("SPI is now", spi);
         spi.on('ready', cb);
     }
+    
+    function findResponse(d, opts) {
+        opts || (opts = {});
+        var idx = opts.start || 0, len = d.length,
+            size = opts.size, tok = opts.token;
+        if (tok) while (idx < len) {          // data response token varies
+             if (d[idx] === tok) break;
+             else if (d[idx] & 0x80) ++idx;
+             else {     // error token!
+                 size = 1;
+                 break;
+            }
+        }
+        else while (idx < len && d[idx] & 0x80) ++idx;          // command responses when 0 in MSB
+        return (idx < len) ? d.slice(idx, idx+size) : Buffer(0);        // WORKAROUND: https://github.com/tessel/beta/issues/338
+    }
+    
     
     var cmdBuffer = new Buffer(6 + 8 + 5);
     function sendCommand(cmd, arg, cb) {
@@ -109,10 +129,7 @@ console.log('_sendCommand', idx, arg.toString(16));
                 console.log("TRANSFER RESULT", d);
                 
                 // response not sent until after command; it will start with a 0 bit
-                var idx = 6, len = d.length,
-                    size = RESP_LEN[command.format];
-                while (idx < len && d[idx] & 0x80) ++idx;
-                d = d.slice(idx, idx+size);
+                d = findResponse(d, {start:6, size:RESP_LEN[command.format]});
                 var r1 = d[0];
                 if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set"), d);
                 else cb(null, r1, d.slice(1));
@@ -159,7 +176,7 @@ console.log('_sendCommand', idx, arg.toString(16));
             spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
                 configureSPI('init', function () {
                     sendCommand('GO_IDLE_STATE', function (e,d) {
-                        if (e) console.error(arguments), cb(new Error("Unknown or missing card."));
+                        if (e) cb(new Error("Unknown or missing card."));
                         else checkVoltage(function (e) {
                             if (e) cb(e);
                             else waitForReady(0, function (e) {
@@ -167,7 +184,7 @@ console.log('_sendCommand', idx, arg.toString(16));
                                 else sendCommand('READ_OCR', function (e,d,b) {
                                     if (e) cb(new Error("Unexpected error reading card size!"));
                                     cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
-                                    if (cardType === 'SDv2') sendCommand('SET_BLOCKLEN', 512, function (e) {
+                                    if (cardType === 'SDv2') sendCommand('SET_BLOCKLEN', BLOCK_SIZE, function (e) {
                                         if (e) cb(new Error("Unexpected error settings block length!"));
                                         else fullSteamAhead();
                                     }); else fullSteamAhead();
@@ -196,10 +213,20 @@ console.log('_sendCommand', idx, arg.toString(16));
         else console.log("Found card type", d);
     });
     
-    
     function readBlock(n, cb) {
-        
+        if (cardType !== 'SDv2+block') n *= BLOCK_SIZE;
+        sendCommand('READ_SINGLE_BLOCK', n, function (e,d) {
+            if (e) cb(e);
+            else spi.receive(8+BLOCK_SIZE+3, function (e,d) {
+                var tok = 0xFE;
+                d = findResponse(d, {token:tok, size:BLOCK_SIZE+3});
+                if (d[0] !== tok) cb(new Error("Card read error: "+d[0]));
+                else cb(null, d.slice(1,d.length-2));       // WORKAROUND: https://github.com/tessel/beta/issues/339
+            });
+        });
     }
+    
+    card._readBlock = readBlock;
     
     return card;
 };
