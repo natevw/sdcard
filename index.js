@@ -9,17 +9,8 @@
 
 var events = require('events');
 
-/*
-var _ = require('struct-fu');
-var cmdStruct = _.struct([
-    _.bool('start'),
-    _.bool('tx'),
-    _.ubit('command', 6),
-    _.uint32('argument'),
-    _.ubit('crc', 7),
-    _.bool('end')
-]);
-*/
+// see http://elm-chan.org/docs/mmc/mmc_e.html
+// and http://www.dejazzer.com/ee379/lecture_notes/lec12_sd_card.pdf
 
 var CMD = {
     GO_IDLE_STATE: {index:0, format:'r1'},
@@ -127,15 +118,13 @@ console.log('_sendCommand', idx, arg.toString(16));
                 else cb(null, r1, d.slice(1));
             });
         }
+        // TODO: to share SPI bus we might need to send one more byte once CSN goes back high…hmmm…
     }
-    
     
     function getCardReady(cb) {
         // see http://elm-chan.org/docs/mmc/gx1/sdinit.png
-        // and http://elm-chan.org/docs/mmc/mmc_e.html
         // and https://www.sdcard.org/downloads/pls/simplified_specs/part1_410.pdf Figure 7-2
         // and http://eet.etec.wwu.edu/morrowk3/code/mmcbb.c
-        
         
         var cardType = null;
         
@@ -206,6 +195,11 @@ console.log('_sendCommand', idx, arg.toString(16));
         if (e) console.error("ERROR:", e);
         else console.log("Found card type", d);
     });
+    
+    
+    function readBlock(n, cb) {
+        
+    }
     
     return card;
 };
