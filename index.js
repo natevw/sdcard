@@ -88,7 +88,7 @@ exports.use = function (port) {
         cmdBuffer[5] = reduceBuffer(cmdBuffer.slice(0,5), crcAdd, 0);
         cmdBuffer.fill(0xFF, 6);
         
-        console.log("sending", cmdBuffer, 'crc', cmdBuffer[5]);
+        console.log("* sending data:", cmdBuffer);
         spi.transfer(cmdBuffer, function (e,d) {
             console.log("TRANSFER RESULT", d);
             cb.call(null, arguments);
@@ -101,7 +101,7 @@ exports.use = function (port) {
         var initLen = Math.ceil(74/8),
             initBuf = new Buffer(initLen);
         initBuf.fill(0xFF);
-        spi.send(initBuf, function () {
+        spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
             configureSPI('init', function () {
                 sendCommand('GO_IDLE_STATE', function () {
                     console.log("Init complete, switching SPI to full speed.");
