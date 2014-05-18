@@ -73,7 +73,6 @@ function reduceBuffer(buf, start, end, fn, res) {
     return res;
 }
 
-
 exports.use = function (port) {
     var card = new events.EventEmitter(),
         spi = null;         // re-initialized to various settings until card is ready
@@ -133,6 +132,7 @@ console.log('_sendCommand', idx, arg.toString(16));
     
     function getCardReady(cb) {
         // see http://elm-chan.org/docs/mmc/gx1/sdinit.png
+        // and http://elm-chan.org/docs/mmc/mmc_e.html
         // and https://www.sdcard.org/downloads/pls/simplified_specs/part1_410.pdf Figure 7-2
         // and http://eet.etec.wwu.edu/morrowk3/code/mmcbb.c
         
