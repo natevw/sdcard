@@ -104,6 +104,7 @@ exports.use = function (port) {
     
     var cmdBuffer = new Buffer(6 + 8 + 5);
     function sendCommand(cmd, arg, cb) {
+console.log(cmd, arg);
         if (typeof arg === 'function') {
             cb = arg;
             arg = 0x00000000;
@@ -120,7 +121,8 @@ exports.use = function (port) {
         function _sendCommand(idx, arg, cb) {
 console.log('_sendCommand', idx, arg.toString(16));
             cmdBuffer[0] = 0x40 | idx;
-            cmdBuffer.writeUInt32BE(arg, 1);
+            /*if (idx === 17) cmdBuffer.writeUInt32LE(arg, 1);
+            else*/ cmdBuffer.writeUInt32BE(arg, 1);
             //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
             cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
             cmdBuffer.fill(0xFF, 6);
@@ -214,13 +216,15 @@ console.log('_sendCommand', idx, arg.toString(16));
     });
     
     function readBlock(n, cb) {
-        if (cardType !== 'SDv2+block') n *= BLOCK_SIZE;
+        //if (cardType !== 'SDv2+block') n *= BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', n, function (e,d) {
             if (e) cb(e);
             else spi.receive(8+BLOCK_SIZE+3, function (e,d) {
+                console.log("data read:", d.slice(0, 12), d.slice(500));
                 var tok = 0xFE;
                 d = findResponse(d, {token:tok, size:BLOCK_SIZE+3});
                 if (d[0] !== tok) cb(new Error("Card read error: "+d[0]));
+                // TODO: need to check (16-bit) checksum before passing along data as good!
                 else cb(null, d.slice(1,d.length-2));       // WORKAROUND: https://github.com/tessel/beta/issues/339
             });
         });
