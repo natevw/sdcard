@@ -84,8 +84,8 @@ exports.use = function (port) {
         cmdBuffer[0] = 0x40 | command.index;
         if (arg) arg.copy(cmdBuffer, 1, 0, 4);
         else cmdBuffer.fill(0x00, 1, 5);
-        //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0);
-        cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0);
+        //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
+        cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
         cmdBuffer.fill(0xFF, 6);
         
         console.log("* sending data:", cmdBuffer);
