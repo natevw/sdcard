@@ -25,6 +25,7 @@ var CMD = {
     GO_IDLE_STATE: {index:0, format:'r1'},
     SEND_IF_COND: {index:8, format:'r7'},
     READ_OCR: {index:58, format:'r3'},
+    SET_BLOCKLEN: {index:16, format:'r1'},
     
     APP_CMD: {index:55, format:'r1'},
     APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
@@ -177,10 +178,13 @@ console.log('_sendCommand', idx, arg.toString(16));
                                 else sendCommand('READ_OCR', function (e,d,b) {
                                     if (e) cb(new Error("Unexpected error reading card size!"));
                                     cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
-                                    fullSteamAhead();
+                                    if (cardType === 'SDv2') sendCommand('SET_BLOCKLEN', 512, function (e) {
+                                        if (e) cb(new Error("Unexpected error settings block length!"));
+                                        else fullSteamAhead();
+                                    }); else fullSteamAhead();
                                 });
                                 function fullSteamAhead() {
-                                    console.log("Init complete, switching SPI to full speed.", d);
+                                    console.log("Init complete, switching SPI to full speed.");
                                     configureSPI('fullspeed', function () {
                                         // now card should be ready!
                                         console.log("full steam ahead!");
