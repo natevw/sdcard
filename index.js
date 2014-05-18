@@ -23,11 +23,25 @@ var cmdStruct = _.struct([
 
 var CMD = {
     GO_IDLE_STATE: {index:0, format:'r1'},
+    SEND_IF_COND: {index:8, format:'r7'},
+    READ_OCR: {index:58, format:'r3'},
+    
+    APP_CMD: {index:55, format:'r1'},
+    APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
 };
 
-var RESP_LEN = {
-    r1: 1
+var RESP_LEN = {r1:1, r3:5, r7:5};
+
+var R1_FLAGS = {
+    IDLE_STATE: 0x01,
+    ERASE_RESET: 0x02,
+    ILLEGAL_CMD: 0x04,
+    CRC_ERROR: 0x08,
+    ERASE_SEQ: 0x10,
+    ADDR_ERROR: 0x20,
+    PARAM_ERROR: 0x40
 };
+R1_FLAGS._ANY_ERROR_ = R1_FLAGS.ILLEGAL_CMD | R1_FLAGS.CRC_ERROR | R1_FLAGS.ERASE_SEQ | R1_FLAGS.ADDR_ERROR| R1_FLAGS.PARAM_ERROR;
 
 // CRC7 via https://github.com/hazelnusse/crc7/blob/master/crc7.cc
 var crcTable = function (poly) {
@@ -77,55 +91,116 @@ exports.use = function (port) {
         spi.on('ready', cb);
     }
     
-    var cmdBuffer = new Buffer(6 + 8);              // Ncr
+    var cmdBuffer = new Buffer(6 + 8 + 5);
     function sendCommand(cmd, arg, cb) {
         if (typeof arg === 'function') {
             cb = arg;
-            arg = null;
+            arg = 0x00000000;
         }
         
         var command = CMD[cmd];
-        cmdBuffer[0] = 0x40 | command.index;
-        if (arg) arg.copy(cmdBuffer, 1, 0, 4);
-        else cmdBuffer.fill(0x00, 1, 5);
-        //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
-        cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
-        cmdBuffer.fill(0xFF, 6);
+        if (command.app_cmd) {
+            _sendCommand(CMD.APP_CMD.index, 0, function (e) {
+                if (e) cb(e);
+                else _sendCommand(command.index, arg, cb);
+            });
+        } else _sendCommand(command.index, arg, cb);
         
-        console.log("* sending data:", cmdBuffer);
-        spi.transfer(cmdBuffer, function (e,d) {
-            console.log("TRANSFER RESULT", d);
-            
-            // response not sent until after command; it will start with a 0 bit
-            var i = 6,
-                l = RESP_LEN[command.format];
-            while (d[i] & 0x80) ++i;
-            d = d.slice(i, i+l);
-            if (d[0] & 0x7c) cb(Error("Error flag(s) set: "+d[0].toString(16)), d);
-            else cb(null, d);
-        });
+        function _sendCommand(idx, arg, cb) {
+console.log('_sendCommand', idx, arg.toString(16));
+            cmdBuffer[0] = 0x40 | idx;
+            cmdBuffer.writeUInt32BE(arg, 1);
+            //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
+            cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
+            cmdBuffer.fill(0xFF, 6);
+            console.log("* sending data:", cmdBuffer);
+            spi.transfer(cmdBuffer, function (e,d) {
+                console.log("TRANSFER RESULT", d);
+                
+                // response not sent until after command; it will start with a 0 bit
+                var idx = 6, len = d.length,
+                    size = RESP_LEN[command.format];
+                while (idx < len && d[idx] & 0x80) ++idx;
+                d = d.slice(idx, idx+size);
+                var r1 = d[0];
+                if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set"), d);
+                else cb(null, r1, d.slice(1));
+            });
+        }
     }
     
-    configureSPI('pulse', function () {
-        // need to pull MOSI _and_ CS high for minimum 74 clock cycles at 100–400kHz
-        console.log("Initial SPI ready, triggering native command mode.");
-        var initLen = Math.ceil(74/8),
-            initBuf = new Buffer(initLen);
-        initBuf.fill(0xFF);
-        spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
-            configureSPI('init', function () {
-                sendCommand('GO_IDLE_STATE', function (e,d) {
-                    if (e) throw e;         // TODO: how should we properly bail on this card?
-                    console.log("Init complete, switching SPI to full speed.");
-                    // TODO: validate response
-                    // TODO: CMD8 next
-                    configureSPI('fullspeed', function () {
-                        // now card should be ready!
-                        console.log("FULL STEAM AHEAD");
+    
+    function getCardReady(cb) {
+        // see http://elm-chan.org/docs/mmc/gx1/sdinit.png
+        // and https://www.sdcard.org/downloads/pls/simplified_specs/part1_410.pdf Figure 7-2
+        // and http://eet.etec.wwu.edu/morrowk3/code/mmcbb.c
+        
+        
+        var cardType = null;
+        
+        function checkVoltage(cb) {
+            var condValue = 0x1AA;
+            sendCommand('SEND_IF_COND', condValue, function (e,d,b) {
+                var oldCard = (d & R1_FLAGS._ANY_ERROR_) === R1_FLAGS.ILLEGAL_CMD;
+                if (e && !oldCard) return cb(new Error("Uknown card."));
+                else if (oldCard) cardType = 'SDv1';            // TODO: or 'MMCv3'!
+                
+                var echoedValue = (b.readUInt16BE(2) & 0xFFF);
+                if (echoedValue !== condValue) cb(new Error("Bad card voltage response."));
+                else cb(null);
+            });
+        }
+        
+        function waitForReady(tries, cb) {
+            if (tries > 100) cb(new Error("Timed out before card was ready."));
+            sendCommand('APP_SEND_OP_COND', 1 << 30, function (e,d,b) {
+                if (e) cb(e);
+                else if (d) setTimeout(waitForReady.bind(null,tries+1,cb), 0);
+                else cb(null, b);
+            });
+        }
+        
+        configureSPI('pulse', function () {
+            // need to pull MOSI _and_ CS high for minimum 74 clock cycles at 100–400kHz
+            console.log("Initial SPI ready, triggering native command mode.");
+            var initLen = Math.ceil(74/8),
+                initBuf = new Buffer(initLen);
+            initBuf.fill(0xFF);
+            spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
+                configureSPI('init', function () {
+                    sendCommand('GO_IDLE_STATE', function (e,d) {
+                        if (e) console.error(arguments), cb(new Error("Unknown or missing card."));
+                        else checkVoltage(function (e) {
+                            if (e) cb(e);
+                            else waitForReady(0, function (e) {
+                                if (cardType) fullSteamAhead();
+                                else sendCommand('READ_OCR', function (e,d,b) {
+                                    if (e) cb(new Error("Unexpected error reading card size!"));
+                                    cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
+                                    fullSteamAhead();
+                                });
+                                function fullSteamAhead() {
+                                    console.log("Init complete, switching SPI to full speed.", d);
+                                    configureSPI('fullspeed', function () {
+                                        // now card should be ready!
+                                        console.log("full steam ahead!");
+                                        cb(null, cardType);
+                                            // ARROW'ED!
+                                    });
+                                }
+                            });
+                        });
                     });
                 });
             });
         });
+    }
+    getCardReady(function (e,d) {
+        if (e) card.emit('error', e);
+        else card.emit('ready');
+        
+        if (e) console.error("ERROR:", e);
+        else console.log("Found card type", d);
     });
     
     return card;
