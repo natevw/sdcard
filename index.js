@@ -128,8 +128,7 @@ exports.use = function (port) {
         function _sendCommand(idx, arg, cb) {
             console.log('_sendCommand', idx, '0x'+arg.toString(16));
             cmdBuffer[0] = 0x40 | idx;
-            /*if (idx === 17) cmdBuffer.writeUInt32LE(arg, 1);
-            else*/ cmdBuffer.writeUInt32BE(arg, 1);
+            cmdBuffer.writeUInt32BE(arg, 1);
             //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
             cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
             cmdBuffer.fill(0xFF, 6);
