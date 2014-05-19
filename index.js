@@ -101,14 +101,21 @@ exports.use = function (port) {
         return (idx < len) ? d.slice(idx, idx+size) : Buffer(0);        // WORKAROUND: https://github.com/tessel/beta/issues/338
     }
     
+    function _parseR1(r1) {
+        var flags = {};
+        Object.keys(R1_FLAGS).forEach(function (k) {
+            if (k[0] !== '_' && r1 & R1_FLAGS[k]) flags[k] = true;
+        });
+        return flags;
+    }
     
     var cmdBuffer = new Buffer(6 + 8 + 5);
     function sendCommand(cmd, arg, cb) {
-console.log(cmd, arg);
         if (typeof arg === 'function') {
             cb = arg;
             arg = 0x00000000;
         }
+        console.log(cmd, arg);
         
         var command = CMD[cmd];
         if (command.app_cmd) {
@@ -119,7 +126,7 @@ console.log(cmd, arg);
         } else _sendCommand(command.index, arg, cb);
         
         function _sendCommand(idx, arg, cb) {
-console.log('_sendCommand', idx, arg.toString(16));
+            console.log('_sendCommand', idx, '0x'+arg.toString(16));
             cmdBuffer[0] = 0x40 | idx;
             /*if (idx === 17) cmdBuffer.writeUInt32LE(arg, 1);
             else*/ cmdBuffer.writeUInt32BE(arg, 1);
@@ -133,7 +140,7 @@ console.log('_sendCommand', idx, arg.toString(16));
                 // response not sent until after command; it will start with a 0 bit
                 d = findResponse(d, {start:6, size:RESP_LEN[command.format]});
                 var r1 = d[0];
-                if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set"), d);
+                if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set. "+(0x100+r1).toString(2).slice(1)), r1);
                 else cb(null, r1, d.slice(1));
             });
         }
@@ -177,8 +184,9 @@ console.log('_sendCommand', idx, arg.toString(16));
             initBuf.fill(0xFF);
             spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
                 configureSPI('init', function () {
+sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for some yet-undiagnosed reason, this avoids card being unhappy every other try
                     sendCommand('GO_IDLE_STATE', function (e,d) {
-                        if (e) cb(new Error("Unknown or missing card."));
+                        if (e) cb(new Error("Unknown or missing card. "+e));
                         else checkVoltage(function (e) {
                             if (e) cb(e);
                             else waitForReady(0, function (e) {
@@ -203,6 +211,7 @@ console.log('_sendCommand', idx, arg.toString(16));
                             });
                         });
                     });
+});
                 });
             });
         });
@@ -216,11 +225,11 @@ console.log('_sendCommand', idx, arg.toString(16));
     });
     
     function readBlock(n, cb) {
-        //if (cardType !== 'SDv2+block') n *= BLOCK_SIZE;
+        if (cardType !== 'SDv2+block') n *= BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', n, function (e,d) {
             if (e) cb(e);
             else spi.receive(8+BLOCK_SIZE+3, function (e,d) {
-                console.log("data read:", d.slice(0, 12), d.slice(500));
+                console.log("data read:", d);
                 var tok = 0xFE;
                 d = findResponse(d, {token:tok, size:BLOCK_SIZE+3});
                 if (d[0] !== tok) cb(new Error("Card read error: "+d[0]));
