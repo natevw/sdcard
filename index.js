@@ -11,6 +11,7 @@ var events = require('events');
 
 // see http://elm-chan.org/docs/mmc/mmc_e.html
 // and http://www.dejazzer.com/ee379/lecture_notes/lec12_sd_card.pdf
+// and http://www.cs.ucr.edu/~amitra/sdcard/ProdManualSDCardv1.9.pdf
 
 var CMD = {
     GO_IDLE_STATE: {index:0, format:'r1'},
@@ -56,6 +57,22 @@ function crcAdd(crc, byte) {
 }
 
 
+// via http://www8.cs.umu.se/~isak/snippets/crc-16.c
+var CRC16_POLY = 0x8408;
+function crcAdd16(crc, byte) {
+    for (var j = 0; j < 8; ++j) {
+        if ((crc & 0x0001) ^ (byte & 0x0001)) crc = (crc >>> 1) ^ CRC16_POLY;
+        else crc >>>= 1;
+        byte >>>= 1
+    }
+    return crc;
+}
+function crcFinal16(crc) {
+    crc = ~crc;
+    crc = (crc << 8) | (crc >>> 8 & 0xFF);
+    return crc & 0xFFFF;
+}
+
 // WORKAROUND: https://github.com/tessel/beta/issues/335
 function reduceBuffer(buf, start, end, fn, res) {
     // NOTE: does not handle missing `res` like Array.prototype.reduce would
@@ -79,7 +96,7 @@ exports.use = function (port) {
             delete cfg.chipSelect;
             pin.output(true);
         }
-        cfg.clockSpeed = (mode === 'fullspeed') ? 2*1000*1000 : 200*1000;
+        cfg.clockSpeed = (0 && mode === 'fullspeed') ? 2*1000*1000 : 200*1000;
         spi = new port.SPI(cfg);
         //console.log("SPI is now", spi);
         spi.on('ready', cb);
@@ -102,9 +119,9 @@ exports.use = function (port) {
     }
     
     function _parseR1(r1) {
-        var flags = {};
+        var flags = [];
         Object.keys(R1_FLAGS).forEach(function (k) {
-            if (k[0] !== '_' && r1 & R1_FLAGS[k]) flags[k] = true;
+            if (k[0] !== '_' && r1 & R1_FLAGS[k]) flags.push(k);
         });
         return flags;
     }
@@ -138,8 +155,10 @@ exports.use = function (port) {
                 
                 // response not sent until after command; it will start with a 0 bit
                 d = findResponse(d, {start:6, size:RESP_LEN[command.format]});
+                if (!d.length) return cb(new Error("No response from card!"));
+                
                 var r1 = d[0];
-                if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set. "+(0x100+r1).toString(2).slice(1)), r1);
+                if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set: "+_parseR1(r1)), r1);
                 else cb(null, r1, d.slice(1));
             });
         }
@@ -231,9 +250,14 @@ sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for so
                 console.log("data read:", d);
                 var tok = 0xFE;
                 d = findResponse(d, {token:tok, size:BLOCK_SIZE+3});
-                if (d[0] !== tok) cb(new Error("Card read error: "+d[0]));
+                if (d[0] !== tok) return cb(new Error("Card read error: "+d[0]));
+                
+                var crc0 = d.readUInt16BE(d.length-2),
+                    crc1 = reduceBuffer(d, 1, d.length-2, crcAdd16, 0xFFFF),
+                    crc2 = reduceBuffer(d, 1, d.length-2, crcAdd16, 0x0000);
+                console.log("CHECKSUM IS", crc0.toString(16), crcFinal16(crc1).toString(16), crcFinal16(crc2).toString(16));
                 // TODO: need to check (16-bit) checksum before passing along data as good!
-                else cb(null, d.slice(1,d.length-2));       // WORKAROUND: https://github.com/tessel/beta/issues/339
+                cb(null, d.slice(1,d.length-2));       // WORKAROUND: https://github.com/tessel/beta/issues/339
             });
         });
     }

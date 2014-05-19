@@ -3,7 +3,7 @@ var tessel = require('tessel'),
 
 var card = sdcard.use(tessel.port['A']);
 card.on('ready', function () {
-    var block = 1;
+    var block = 0;
     card._readBlock(block, function (e,d) {
         if (e) console.error("Read error", e);
         
