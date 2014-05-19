@@ -12,6 +12,7 @@ var events = require('events');
 // see http://elm-chan.org/docs/mmc/mmc_e.html
 // and http://www.dejazzer.com/ee379/lecture_notes/lec12_sd_card.pdf
 // and http://www.cs.ucr.edu/~amitra/sdcard/ProdManualSDCardv1.9.pdf
+// and http://wiki.seabright.co.nz/wiki/SdCardProtocol.html
 
 var CMD = {
     GO_IDLE_STATE: {index:0, format:'r1'},
@@ -50,28 +51,32 @@ var crcTable = function (poly) {
     return table;
 }(0x89);
 // spot check a few values, via http://www.cs.fsu.edu/~baker/devices/lxr/http/source/linux/lib/crc7.c
-//if (crcTable[0] !== 0x00 || crcTable[7] !==  0x3f || crcTable[8] !== 0x48 || crcTable[255] !== 0x79) throw Error("Wrong table!")
+if (crcTable[0] !== 0x00 || crcTable[7] !==  0x3f || crcTable[8] !== 0x48 || crcTable[255] !== 0x79) throw Error("Wrong CRC7 table generated!")
 
 function crcAdd(crc, byte) {
     return crcTable[(crc << 1) ^ byte];
 }
 
-
-// via http://www8.cs.umu.se/~isak/snippets/crc-16.c
-var CRC16_POLY = 0x8408;
-function crcAdd16(crc, byte) {
-    for (var j = 0; j < 8; ++j) {
-        if ((crc & 0x0001) ^ (byte & 0x0001)) crc = (crc >>> 1) ^ CRC16_POLY;
-        else crc >>>= 1;
-        byte >>>= 1
+// via http://www.digitalnemesis.com/info/codesamples/embeddedcrc16/gentable.c
+var crcTable16 = function (poly) {
+    var table = new Array(256);
+    for (var i = 0; i < 256; ++i) {
+        table[i] = i << 8;
+        for (var j = 0; j < 8; ++j) {
+            if (table[i] & 0x8000) table[i] = (table[i] << 1) & 0xFFFF ^ poly;
+            else table[i] = (table[i] << 1) & 0xFFFF;
+            
+        }
     }
-    return crc;
+    return table;
+}(0x1021);
+// spot check a few values, via http://lxr.linux.no/linux+v2.6.32/lib/crc-itu-t.c
+if (crcTable16[0] !== 0x00 || crcTable16[7] !==  0x70e7 || crcTable16[8] !== 0x8108 || crcTable16[255] !== 0x1ef0) throw Error("Wrong CRC16 table generated!")
+
+function crcAdd16(crc, byte) {
+    return ((crc << 8) ^ crcTable16[((crc >>> 8) ^ byte) & 0xff]) & 0xFFFF;
 }
-function crcFinal16(crc) {
-    crc = ~crc;
-    crc = (crc << 8) | (crc >>> 8 & 0xFF);
-    return crc & 0xFFFF;
-}
+
 
 // WORKAROUND: https://github.com/tessel/beta/issues/335
 function reduceBuffer(buf, start, end, fn, res) {
@@ -237,28 +242,29 @@ sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for so
     getCardReady(function (e,d) {
         if (e) card.emit('error', e);
         else card.emit('ready');
-        
-        if (e) console.error("ERROR:", e);
-        else console.log("Found card type", d);
     });
     
     function readBlock(n, cb) {
         if (cardType !== 'SDv2+block') n *= BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', n, function (e,d) {
             if (e) cb(e);
-            else spi.receive(8+BLOCK_SIZE+3, function (e,d) {
-                console.log("data read:", d);
-                var tok = 0xFE;
-                d = findResponse(d, {token:tok, size:BLOCK_SIZE+3});
-                if (d[0] !== tok) return cb(new Error("Card read error: "+d[0]));
-                
-                var crc0 = d.readUInt16BE(d.length-2),
-                    crc1 = reduceBuffer(d, 1, d.length-2, crcAdd16, 0xFFFF),
-                    crc2 = reduceBuffer(d, 1, d.length-2, crcAdd16, 0x0000);
-                console.log("CHECKSUM IS", crc0.toString(16), crcFinal16(crc1).toString(16), crcFinal16(crc2).toString(16));
-                // TODO: need to check (16-bit) checksum before passing along data as good!
-                cb(null, d.slice(1,d.length-2));       // WORKAROUND: https://github.com/tessel/beta/issues/339
-            });
+            else waitForData(0);
+            function waitForData(tries) {
+                if (tries > 100) cb(new Error("Timed out waiting for data response."));
+                else spi.receive(1, function (e,d) {
+                    console.log("While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
+                    if (~d[0] & 0x80) cb(new Error("Card read error: "+d[0]));
+                    else if (d[0] !== 0xFE) waitForData(tries+1);
+                    else spi.receive(BLOCK_SIZE+2, function (e,d) {
+                        /*var crc0 = d.readUInt16BE(d.length-2),
+                            crc1 = reduceBuffer(d, 0, d.length-2, crcAdd16, 0),
+                            crcError = (crc0 !== crc1);*/
+                        var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
+                        if (crcError) cb(new Error("Checksum error on data transfer!"));
+                        else cb(null, d.slice(0,d.length-2));       // WORKAROUND: https://github.com/tessel/beta/issues/339
+                    });
+                });
+            }
         });
     }
     

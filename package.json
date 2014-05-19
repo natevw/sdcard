@@ -21,5 +21,8 @@
   "bugs": {
     "url": "https://github.com/natevw/tessel-sdcard/issues"
   },
-  "homepage": "https://github.com/natevw/tessel-sdcard"
+  "homepage": "https://github.com/natevw/tessel-sdcard",
+  "devDependencies": {
+    "queue-async": "^1.0.7"
+  }
 }
