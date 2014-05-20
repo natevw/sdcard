@@ -245,8 +245,8 @@ sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for so
     });
     
     function readBlock(n, cb) {
-        if (cardType !== 'SDv2+block') n *= BLOCK_SIZE;
-        sendCommand('READ_SINGLE_BLOCK', n, function (e,d) {
+        var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
+        sendCommand('READ_SINGLE_BLOCK', addr, function (e,d) {
             if (e) cb(e);
             else waitForData(0);
             function waitForData(tries) {
@@ -261,7 +261,7 @@ sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for so
                             crcError = (crc0 !== crc1);*/
                         var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
                         if (crcError) cb(new Error("Checksum error on data transfer!"));
-                        else cb(null, d.slice(0,d.length-2));       // WORKAROUND: https://github.com/tessel/beta/issues/339
+                        else cb(null, d.slice(0,d.length-2), n);       // WORKAROUND: https://github.com/tessel/beta/issues/339
                     });
                 });
             }

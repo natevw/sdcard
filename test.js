@@ -7,6 +7,7 @@ card.on('ready', function () {
     console.log("CARD READY");
     
     var q = queue(1);
+    //q.defer(card._readBlock, 5);
     for (var i = 0; i < 2; ++i) q.defer(card._readBlock, i);
     q.awaitAll(function (e, blocks) {
         if (e) console.error("Read error", e);
