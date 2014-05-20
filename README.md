@@ -1,4 +1,4 @@
-#Accelerometer
+#SD Card
 Driver for the sdcard Tessel SD Card module.
 
 ##Installation
