@@ -91,12 +91,20 @@ function reduceBuffer(buf, start, end, fn, res) {
 var process_nextTick = process.nextTick || function (fn) { setTimeout(fn, 0); };
 
 
-exports.use = function (port) {
+exports.use = function (port, _dbgLevel) {
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
         pin = port.digital[1];         
     
-    var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
+    var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block    
+    
+    function log(level) {
+        if (_dbgLevel && level > _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
+    }
+    log.DBG = 1;
+    log.INFO = 2;
+    log.WARN = 3;
+    log.ERR = 4;
     
     function configureSPI(speed, cb) {           // 'pulse', 'init', 'fullspeed'
         spi = new port.SPI({
@@ -164,15 +172,15 @@ exports.use = function (port) {
     var _dbgTransactionNumber = 0;
     function spiTransaction(fn) {
         var dbgTN = _dbgTransactionNumber++;
-        console.log("----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
+        log(log.DBG, "----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
         spiQueue.acquire(function (releaseQueue) {
-            console.log("----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
+            log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
             pin.output(false);
             fn(function () {
                 pin.output(true);
                 //spi.send(_STUFF_BYTE, function () {
                 spi.transfer(_STUFF_BYTE, function () {
-                    console.log("----- RELEASING SPI QUEUE -----", '#'+dbgTN);
+                    log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
                     releaseQueue();
                 });
             });
@@ -182,7 +190,7 @@ exports.use = function (port) {
     // usage: `cb = SPI_TRANSACTION_WRAPPER(cb, function () { …code… });`
     function SPI_TRANSACTION_WRAPPER(cb, fn, _nested) {
         if (_nested) {
-            console.log("[nested transaction]");
+            log(log.DBG, "[nested transaction]");
             process_nextTick(fn);
             return cb;
         }
@@ -206,7 +214,7 @@ exports.use = function (port) {
             arg = 0x00000000;
         }
     cb = SPI_TRANSACTION_WRAPPER(cb, function () {
-        console.log('sendCommand', cmd, arg);
+        log(log.DBG, 'sendCommand', cmd, arg);
         
         var command = CMD[cmd];
         if (command.app_cmd) {
@@ -217,15 +225,15 @@ exports.use = function (port) {
         } else _sendCommand(command.index, arg, cb);
         
         function _sendCommand(idx, arg, cb) {
-            console.log('_sendCommand', idx, '0x'+arg.toString(16));
+            log(log.DBG, '_sendCommand', idx, '0x'+arg.toString(16));
             cmdBuffer[0] = 0x40 | idx;
             cmdBuffer.writeUInt32BE(arg, 1);
             //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
             cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
             cmdBuffer.fill(0xFF, 6);
-            console.log("* sending data:", cmdBuffer);
+            log(log.DBG, "* sending data:", cmdBuffer);
             spi.transfer(cmdBuffer, function (e,d) {
-                console.log("TRANSFER RESULT", d);
+                log(log.DBG, "TRANSFER RESULT", d);
                 
                 // response not sent until after command; it will start with a 0 bit
                 d = findResponse(d, {start:6, size:RESP_LEN[command.format]});
@@ -269,7 +277,7 @@ exports.use = function (port) {
         
         configureSPI('slow', function () {
             // need to pull MOSI _and_ CS high for minimum 74 clock cycles at 100–400kHz
-            console.log("Initial SPI ready, triggering native command mode.");
+            log(log.DBG, "Initial SPI ready, triggering native command mode.");
             var initLen = Math.ceil(74/8),
                 initBuf = new Buffer(initLen);
             initBuf.fill(0xFF);
@@ -290,10 +298,10 @@ exports.use = function (port) {
                                 }); else fullSteamAhead();
                             });
                             function fullSteamAhead() {
-                                console.log("Init complete, switching SPI to full speed.");
+                                log(log.DBG, "Init complete, switching SPI to full speed.");
                                 configureSPI('fast', function () {
                                     // now card should be ready!
-                                    console.log("full steam ahead!");
+                                    log(log.DBG, "full steam ahead!");
                                     cb(null, cardType);
                                         // ARROW'ED!
                                 });
@@ -318,7 +326,7 @@ exports.use = function (port) {
                 if (tries > 100) cb(new Error("Timed out waiting for data response."));
                 //else spi.receive(1, function (e,d) {
                 spi.transfer(_STUFF_BYTE, function (e,d) {
-                    console.log("While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
+                    log(log.DBG, "While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
                     if (~d[0] & 0x80) cb(new Error("Card read error: "+d[0]));
                     else if (d[0] !== 0xFE) waitForData(tries+1);
                     //else spi.receive(BLOCK_SIZE+2+1, function (e,d) {
