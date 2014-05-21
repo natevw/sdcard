@@ -180,13 +180,12 @@ exports.use = function (port) {
     }
     
     // usage: `cb = SPI_TRANSACTION_WRAPPER(cb, function () { …code… });`
-    var _inTransaction = false;
-    function SPI_TRANSACTION_WRAPPER(cb, fn) {
-        if (_inTransaction) {
+    function SPI_TRANSACTION_WRAPPER(cb, fn, _nested) {
+        if (_nested) {
             console.log("[nested transaction]");
             process_nextTick(fn);
             return cb;
-        } else _inTransaction = true;
+        }
         
         var _releaseSPI;
         spiTransaction(function (releaseSPI) {
@@ -195,14 +194,14 @@ exports.use = function (port) {
         });
         return function _cb() {
             _releaseSPI();
-            _inTransaction = false;
             cb.apply(this, arguments);
         };
     }
     
     var cmdBuffer = new Buffer(6 + 8 + 5);
-    function sendCommand(cmd, arg, cb) {
+    function sendCommand(cmd, arg, cb, _nested) {
         if (typeof arg === 'function') {
+            _nested = cb;
             cb = arg;
             arg = 0x00000000;
         }
@@ -237,7 +236,7 @@ exports.use = function (port) {
                 else cb(null, r1, d.slice(1));
             });
         }
-    }); }
+    }, _nested); }
     
     function getCardReady(cb) {
         // see http://elm-chan.org/docs/mmc/gx1/sdinit.png
@@ -333,7 +332,7 @@ exports.use = function (port) {
                     });
                 });
             }
-        });
+        }, true);
     }); }
     
     card._readBlock = readBlock;
