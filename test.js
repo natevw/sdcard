@@ -17,8 +17,8 @@ card.on('ready', function () {
         card._readBlock(n, function (e,d) {
             if (e) return console.error("Read error", e);
             //console.log("Data read at block", n);
-            for (var off = 0x000; off < 0x200; off += 0x040) {
-                console.log(d.slice(off, off+0x040).toString('hex'), h(n,0xFFFF), h(off,0xFFFF));
+            for (var off = 0x000, wid = 0x040; off < 0x200; off += wid) {
+                console.log(d.slice(off, off+wid).toString('hex'), h(n,0xFFFF), h(off,0xFFFF));
             }
         });
     }
