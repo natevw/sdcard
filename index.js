@@ -89,13 +89,13 @@ function reduceBuffer(buf, start, end, fn, res) {
 
 exports.use = function (port) {
     var card = new events.EventEmitter(),
-        spi = null;         // re-initialized to various settings until card is ready
+        spi = null,         // re-initialized to various settings until card is ready
+        pin = port.digital[1];         
     
     var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
     
     function configureSPI(mode, cb) {           // 'pulse', 'init', 'fullspeed'
-        var pin = port.digital[1],
-            cfg = { chipSelect: pin };
+        var cfg = { chipSelect: pin };
         if (mode === 'pulse') {
             // during pulse, CSN pin needs to be (and then remain) pulled high
             delete cfg.chipSelect;
@@ -129,6 +129,69 @@ exports.use = function (port) {
             if (k[0] !== '_' && r1 & R1_FLAGS[k]) flags.push(k);
         });
         return flags;
+    }
+    
+    function _serialQueue() {
+        // quick-and-dirty simple serial queue, calls fn
+        var q = {},
+            tasks = [],
+            busy = false;
+        function runNext() {
+            var fn = tasks.shift();         // TODO: avoid
+            if (fn) {
+                busy = true;
+                fn(function () {
+                    busy = false;
+                    runNext();
+                });
+            }
+        }
+        q.acquire = function (fn) {
+            tasks.push(fn);
+            if (!busy) runNext();
+        };
+        return q;
+    }
+    
+    function _stuffBuffer(n) {
+        var b = Buffer(n);
+        b.fill(0xFF);
+        return b;
+    }
+    _STUFF_BYTE = _stuffBuffer(1);
+    
+    var spiQueue = _serialQueue();
+    
+    // executes `fn(cb)` after start; must end with `cb()`
+    var _dbgTransactionNumber = 0;
+    function spiTransaction(fn) {
+        var dbgTN = _dbgTransactionNumber++;
+        console.log("----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
+        spiQueue.acquire(function (releaseQueue) {
+            console.log("----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
+            pin.output(false);
+            fn(function () {
+                pin.output(true);
+                //spi.send(_STUFF_BYTE, function () {
+                spi.transfer(_STUFF_BYTE, function () {
+                    console.log("----- RELEASING SPI QUEUE -----", '#'+dbgTN);
+                    releaseQueue();
+                });
+            });
+        });
+    }
+    
+    // usage: `cb = SPI_TRANSACTION_WRAPPER(cb, function () { …code… });`
+    function SPI_TRANSACTION_WRAPPER(cb, fn) {
+        var _releaseSPI;
+        spiTransaction(function (releaseSPI) {
+            _releaseSPI = releaseSPI;
+            fn();
+        });
+        return function _cb() {
+            _releaseSPI();
+            cb.apply(this, arguments);
+        };
     }
     
     var cmdBuffer = new Buffer(6 + 8 + 5);
@@ -207,7 +270,7 @@ exports.use = function (port) {
             initBuf.fill(0xFF);
             spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
                 configureSPI('init', function () {
-sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for some yet-undiagnosed reason, this avoids card being unhappy every other try
+//sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for some yet-undiagnosed reason, this avoids card being unhappy every other try
                     sendCommand('GO_IDLE_STATE', function (e,d) {
                         if (e) cb(new Error("Unknown or missing card. "+e));
                         else checkVoltage(function (e) {
@@ -234,7 +297,7 @@ sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for so
                             });
                         });
                     });
-});
+//});
                 });
             });
         });
@@ -244,29 +307,31 @@ sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for so
         else card.emit('ready');
     });
     
-    function readBlock(n, cb) {
+    function readBlock(n, cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', addr, function (e,d) {
             if (e) cb(e);
             else waitForData(0);
             function waitForData(tries) {
                 if (tries > 100) cb(new Error("Timed out waiting for data response."));
-                else spi.receive(1, function (e,d) {
+                //else spi.receive(1, function (e,d) {
+                spi.transfer(_STUFF_BYTE, function (e,d) {
                     console.log("While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
                     if (~d[0] & 0x80) cb(new Error("Card read error: "+d[0]));
                     else if (d[0] !== 0xFE) waitForData(tries+1);
-                    else spi.receive(BLOCK_SIZE+2, function (e,d) {
+                    //else spi.receive(BLOCK_SIZE+2+1, function (e,d) {
+                    else spi.transfer(_stuffBuffer(BLOCK_SIZE+2+1), function (e,d) {
                         /*var crc0 = d.readUInt16BE(d.length-2),
                             crc1 = reduceBuffer(d, 0, d.length-2, crcAdd16, 0),
                             crcError = (crc0 !== crc1);*/
-                        var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
+                        var crcError = reduceBuffer(d, 0, d.length-1, crcAdd16, 0);
                         if (crcError) cb(new Error("Checksum error on data transfer!"));
-                        else cb(null, d.slice(0,d.length-2), n);       // WORKAROUND: https://github.com/tessel/beta/issues/339
+                        else cb(null, d.slice(0,d.length-2-1), n);       // WORKAROUND: https://github.com/tessel/beta/issues/339
                     });
                 });
             }
         });
-    }
+    }); }
     
     card._readBlock = readBlock;
     
