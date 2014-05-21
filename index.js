@@ -87,6 +87,10 @@ function reduceBuffer(buf, start, end, fn, res) {
     return res;
 }
 
+// WORKAROUND: https://github.com/tessel/beta/issues/356
+var process_nextTick = process.nextTick || function (fn) { setTimeout(fn, 0); };
+
+
 exports.use = function (port) {
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
@@ -142,9 +146,7 @@ exports.use = function (port) {
         }
         q.acquire = function (fn) {
             tasks.push(fn);
-            //if (!busy) process.nextTick(runNext);
-            // WORKAROUND: https://github.com/tessel/beta/issues/356
-            if (!busy) setTimeout(runNext, 0);
+            if (!busy) process_nextTick(runNext);
         };
         return q;
     }
@@ -180,8 +182,11 @@ exports.use = function (port) {
     // usage: `cb = SPI_TRANSACTION_WRAPPER(cb, function () { …code… });`
     var _inTransaction = false;
     function SPI_TRANSACTION_WRAPPER(cb, fn) {
-        if (_inTransaction) return console.log("[nested transaction]"), cb;
-        else _inTransaction = true;
+        if (_inTransaction) {
+            console.log("[nested transaction]");
+            process_nextTick(fn);
+            return cb;
+        } else _inTransaction = true;
         
         var _releaseSPI;
         spiTransaction(function (releaseSPI) {
