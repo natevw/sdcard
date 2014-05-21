@@ -6,8 +6,8 @@ var card = sdcard.use(tessel.port['A']);
 card.on('ready', function () {
     console.log("CARD READY");
     
-    for (var i = 0; i < 4; ++i) readBlock(i);
-    for (var i = 4; i > 0; --i) readBlock(i-1);
+    for (var i = 0; i < 1024; ++i) readBlock(i);
+    //for (var i = 4; i > 0; --i) readBlock(i-1);
     function readBlock(n) {
         card._readBlock(n, function (e,d) {
             if (e) return console.error("Read error", e);

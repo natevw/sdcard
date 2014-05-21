@@ -94,16 +94,10 @@ exports.use = function (port) {
     
     var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
     
-    function configureSPI(mode, cb) {           // 'pulse', 'init', 'fullspeed'
-        var cfg = { chipSelect: pin };
-        if (mode === 'pulse') {
-            // during pulse, CSN pin needs to be (and then remain) pulled high
-            delete cfg.chipSelect;
-            pin.output(true);
-        }
-        cfg.clockSpeed = (0 && mode === 'fullspeed') ? 2*1000*1000 : 200*1000;
-        spi = new port.SPI(cfg);
-        //console.log("SPI is now", spi);
+    function configureSPI(speed, cb) {           // 'pulse', 'init', 'fullspeed'
+        spi = new port.SPI({
+            clockSpeed: (speed === 'fast') ? 2*1000*1000 : 200*1000
+        });
         spi.on('ready', cb);
     }
     
@@ -148,7 +142,9 @@ exports.use = function (port) {
         }
         q.acquire = function (fn) {
             tasks.push(fn);
-            if (!busy) runNext();
+            //if (!busy) process.nextTick(runNext);
+            // WORKAROUND: https://github.com/tessel/beta/issues/356
+            if (!busy) setTimeout(runNext, 0);
         };
         return q;
     }
@@ -182,7 +178,11 @@ exports.use = function (port) {
     }
     
     // usage: `cb = SPI_TRANSACTION_WRAPPER(cb, function () { …code… });`
+    var _inTransaction = false;
     function SPI_TRANSACTION_WRAPPER(cb, fn) {
+        if (_inTransaction) return console.log("[nested transaction]"), cb;
+        else _inTransaction = true;
+        
         var _releaseSPI;
         spiTransaction(function (releaseSPI) {
             _releaseSPI = releaseSPI;
@@ -190,6 +190,7 @@ exports.use = function (port) {
         });
         return function _cb() {
             _releaseSPI();
+            _inTransaction = false;
             cb.apply(this, arguments);
         };
     }
@@ -200,7 +201,8 @@ exports.use = function (port) {
             cb = arg;
             arg = 0x00000000;
         }
-        console.log(cmd, arg);
+    cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+        console.log('sendCommand', cmd, arg);
         
         var command = CMD[cmd];
         if (command.app_cmd) {
@@ -230,8 +232,7 @@ exports.use = function (port) {
                 else cb(null, r1, d.slice(1));
             });
         }
-        // TODO: to share SPI bus we might need to send one more byte once CSN goes back high…hmmm…
-    }
+    }); }
     
     function getCardReady(cb) {
         // see http://elm-chan.org/docs/mmc/gx1/sdinit.png
@@ -262,42 +263,39 @@ exports.use = function (port) {
             });
         }
         
-        configureSPI('pulse', function () {
+        configureSPI('slow', function () {
             // need to pull MOSI _and_ CS high for minimum 74 clock cycles at 100–400kHz
             console.log("Initial SPI ready, triggering native command mode.");
             var initLen = Math.ceil(74/8),
                 initBuf = new Buffer(initLen);
             initBuf.fill(0xFF);
+            pin.output(true);
             spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
-                configureSPI('init', function () {
-//sendCommand('GO_IDLE_STATE', function (e,d) {               // HACK/TODO: for some yet-undiagnosed reason, this avoids card being unhappy every other try
-                    sendCommand('GO_IDLE_STATE', function (e,d) {
-                        if (e) cb(new Error("Unknown or missing card. "+e));
-                        else checkVoltage(function (e) {
-                            if (e) cb(e);
-                            else waitForReady(0, function (e) {
-                                if (cardType) fullSteamAhead();
-                                else sendCommand('READ_OCR', function (e,d,b) {
-                                    if (e) cb(new Error("Unexpected error reading card size!"));
-                                    cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
-                                    if (cardType === 'SDv2') sendCommand('SET_BLOCKLEN', BLOCK_SIZE, function (e) {
-                                        if (e) cb(new Error("Unexpected error settings block length!"));
-                                        else fullSteamAhead();
-                                    }); else fullSteamAhead();
-                                });
-                                function fullSteamAhead() {
-                                    console.log("Init complete, switching SPI to full speed.");
-                                    configureSPI('fullspeed', function () {
-                                        // now card should be ready!
-                                        console.log("full steam ahead!");
-                                        cb(null, cardType);
-                                            // ARROW'ED!
-                                    });
-                                }
+                sendCommand('GO_IDLE_STATE', function (e,d) {
+                    if (e) cb(new Error("Unknown or missing card. "+e));
+                    else checkVoltage(function (e) {
+                        if (e) cb(e);
+                        else waitForReady(0, function (e) {
+                            if (cardType) fullSteamAhead();
+                            else sendCommand('READ_OCR', function (e,d,b) {
+                                if (e) cb(new Error("Unexpected error reading card size!"));
+                                cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
+                                if (cardType === 'SDv2') sendCommand('SET_BLOCKLEN', BLOCK_SIZE, function (e) {
+                                    if (e) cb(new Error("Unexpected error settings block length!"));
+                                    else fullSteamAhead();
+                                }); else fullSteamAhead();
                             });
+                            function fullSteamAhead() {
+                                console.log("Init complete, switching SPI to full speed.");
+                                configureSPI('fast', function () {
+                                    // now card should be ready!
+                                    console.log("full steam ahead!");
+                                    cb(null, cardType);
+                                        // ARROW'ED!
+                                });
+                            }
                         });
                     });
-//});
                 });
             });
         });
