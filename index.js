@@ -371,8 +371,13 @@ exports.use = function (port) {
                     var crc = Buffer(2);
                     crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
                     spi_send(crc, function () {
+console.log("ABOUT TO RECEIVE 9 bytes, instead of only 8…!");
+var dbgBuffer = Buffer(9);
+dbgBuffer.fill(0xFF);
+spi.transfer(dbgBuffer, function (e,d) {
+console.log("TRANSFER COMPLETE — BUG DID NOT HAPPEN?");
                         // TODO: why do things lock up here if `spi_receive(>8 bytes, …)` (?!)
-                        spi_receive(1+1, function (e,d) {    // data response + timing byte
+                        //spi_receive(1+1, function (e,d) {    // data response + timing byte
                             log(log.DBG, "Data response was:", d);
                             
                             var dr = d[0] & 0x1f;
