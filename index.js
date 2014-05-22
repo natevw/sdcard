@@ -20,6 +20,7 @@ var CMD = {
     READ_OCR: {index:58, format:'r3'},
     SET_BLOCKLEN: {index:16, format:'r1'},
     READ_SINGLE_BLOCK: {index:17, format:'r1'},
+    WRITE_BLOCK: {index:24, format:'r1'},
     
     APP_CMD: {index:55, format:'r1'},
     APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
@@ -91,20 +92,39 @@ function reduceBuffer(buf, start, end, fn, res) {
 var process_nextTick = process.nextTick || function (fn) { setTimeout(fn, 0); };
 
 
-exports.use = function (port, _dbgLevel) {
+exports.use = function (port) {
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
-        pin = port.digital[1];         
+        pin = port.digital[1];
     
     var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block    
     
-    function log(level) {
-        if (_dbgLevel && level > _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
+    // WORKAROUND: https://github.com/tessel/beta/issues/336
+    function spi_send(d, cb) {
+        return spi.transfer(d, cb);
     }
-    log.DBG = 1;
-    log.INFO = 2;
-    log.WARN = 3;
-    log.ERR = 4;
+    function spi_receive(n, cb) {
+        var d = _stuffBuffer(n);
+        return spi.transfer(d, cb);
+    }
+    
+    function _stuffBuffer(n) {
+        var b = Buffer(n);
+        b.fill(0xFF);
+        return b;
+    }
+    
+    var _STUFF_BYTE = _stuffBuffer(1),
+        _WRITE0_TOK = Buffer([0xFF, 0xFE]);
+    
+    var _dbgLevel = -5;
+    function log(level) {
+        if (level >= _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
+    }
+    log.DBG = -4;
+    log.INFO = -3;
+    log.WARN = -2;
+    log.ERR = -1;
     
     function configureSPI(speed, cb) {           // 'pulse', 'init', 'fullspeed'
         spi = new port.SPI({
@@ -159,13 +179,6 @@ exports.use = function (port, _dbgLevel) {
         return q;
     }
     
-    function _stuffBuffer(n) {
-        var b = Buffer(n);
-        b.fill(0xFF);
-        return b;
-    }
-    _STUFF_BYTE = _stuffBuffer(1);
-    
     var spiQueue = _serialQueue();
     
     // executes `fn(cb)` after start; must end with `cb()`
@@ -178,8 +191,7 @@ exports.use = function (port, _dbgLevel) {
             pin.output(false);
             fn(function () {
                 pin.output(true);
-                //spi.send(_STUFF_BYTE, function () {
-                spi.transfer(_STUFF_BYTE, function () {
+                spi_send(_STUFF_BYTE, function () {
                     log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
                     releaseQueue();
                 });
@@ -282,10 +294,11 @@ exports.use = function (port, _dbgLevel) {
                 initBuf = new Buffer(initLen);
             initBuf.fill(0xFF);
             pin.output(true);
-            spi.transfer(initBuf, function () {             // WORKAROUND: would use .send but https://github.com/tessel/beta/issues/336
+            spi_send(initBuf, function () {
                 sendCommand('GO_IDLE_STATE', function (e,d) {
                     if (e) cb(new Error("Unknown or missing card. "+e));
                     else checkVoltage(function (e) {
+                        // TODO: re-enable CRC once in SPI mode (here, or after ready?)
                         if (e) cb(e);
                         else waitForReady(0, function (e) {
                             if (cardType) fullSteamAhead();
@@ -317,6 +330,17 @@ exports.use = function (port, _dbgLevel) {
         else card.emit('ready');
     });
     
+    
+    function waitForIdle(tries, cb) {
+        log(log.DBG, "Waiting for idle,", tries, "more tries.");
+        if (!tries) cb(new Error("No more tries left waiting for idle."));
+        else spi_receive(1, function (e,d) {
+            if (e) cb(e);
+            else if (d[0] === 0xFF) cb();
+            else waitForIdle(tries-1, cb);
+        });
+    }
+    
     function readBlock(n, cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', addr, function (e,d) {
@@ -324,26 +348,53 @@ exports.use = function (port, _dbgLevel) {
             else waitForData(0);
             function waitForData(tries) {
                 if (tries > 100) cb(new Error("Timed out waiting for data response."));
-                //else spi.receive(1, function (e,d) {
-                spi.transfer(_STUFF_BYTE, function (e,d) {
+                else spi_receive(1, function (e,d) {
                     log(log.DBG, "While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
                     if (~d[0] & 0x80) cb(new Error("Card read error: "+d[0]));
                     else if (d[0] !== 0xFE) waitForData(tries+1);
-                    //else spi.receive(BLOCK_SIZE+2+1, function (e,d) {
-                    else spi.transfer(_stuffBuffer(BLOCK_SIZE+2+1), function (e,d) {
+                    else spi_receive(BLOCK_SIZE+2, function (e,d) {
                         /*var crc0 = d.readUInt16BE(d.length-2),
                             crc1 = reduceBuffer(d, 0, d.length-2, crcAdd16, 0),
                             crcError = (crc0 !== crc1);*/
-                        var crcError = reduceBuffer(d, 0, d.length-1, crcAdd16, 0);
+                        var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
                         if (crcError) cb(new Error("Checksum error on data transfer!"));
-                        else cb(null, d.slice(0,d.length-2-1), n);       // WORKAROUND: https://github.com/tessel/beta/issues/339
+                        else cb(null, d.slice(0,d.length-2), n);       // WORKAROUND: https://github.com/tessel/beta/issues/339
                     });
                 });
             }
         }, true);
     }); }
     
+    function writeBlock(n, data, cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+        if (data.length !== BLOCK_SIZE) throw Error("Must write exactly "+BLOCK_SIZE+"bytes.");
+        var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
+        sendCommand('WRITE_BLOCK', addr, function (e) {
+            if (e) cb(e);
+            else spi_send(_WRITE0_TOK, function () {         // NOTE: token includes a stuff byte
+                spi_send(data, function () {
+                    var crc = Buffer(2);
+                    crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
+                    spi_send(crc, function () {
+                        // TODO: why do things lock up here if `spi_receive(>8 bytes, …)` (?!)
+                        spi_receive(1+1, function (e,d) {    // data response + timing byte
+                            log(log.DBG, "Data response was:", d);
+                            
+                            var dr = d[0] & 0x1f;
+                            if (dr !== 0x05) cb(new Error("Data rejected: "+d[0].toString(16)));
+                            // TODO: proper timeout values (here and elsewhere; based on CSR?)
+                            else waitForIdle(100, cb);     // TODO: we could actually release SPI to *other* users while waiting
+                        });
+                    });
+                });
+            });
+        }, true);
+    }); }
+    
+    // TODO: readBlocks/writeBlocks (multi support)
+    // TODO: erase/pre-erase?
+    
     card._readBlock = readBlock;
+    card._writeBlock = writeBlock;
     
     return card;
 };

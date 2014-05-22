@@ -11,8 +11,18 @@ var card = sdcard.use(tessel.port['A']);
 card.on('ready', function () {
     console.log("CARD READY");
     
-    for (var i = 0; i < 512; ++i) readBlock(i);
-    //for (var i = 4; i > 0; --i) readBlock(i-1);
+    var b = Buffer(512);
+    //b.fill(42);
+    card._writeBlock(2, b, function (e) {
+        if (e) console.error("READ FAILED", e);
+        else card._readBlock(2, function (e,d) {
+            console.log(b.slice(0, 16), b.slice(496));
+            console.log(d.slice(0, 16), d.slice(496));
+        });
+    
+    });
+    /*
+    for (var i = 0; i < 16; ++i) readBlock(i);
     function readBlock(n) {
         card._readBlock(n, function (e,d) {
             if (e) return console.error("Read error", e);
@@ -22,4 +32,5 @@ card.on('ready', function () {
             }
         });
     }
+    */
 });
