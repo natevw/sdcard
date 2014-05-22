@@ -9,6 +9,9 @@
 
 var events = require('events');
 
+// TODO: card insertion status
+
+
 // see http://elm-chan.org/docs/mmc/mmc_e.html
 // and http://www.dejazzer.com/ee379/lecture_notes/lec12_sd_card.pdf
 // and http://www.cs.ucr.edu/~amitra/sdcard/ProdManualSDCardv1.9.pdf
@@ -104,20 +107,12 @@ exports.use = function (port) {
         return spi.transfer(d, cb);
     }
     function spi_receive(n, cb) {
-        var d = _stuffBuffer(n);
+        var d = Buffer(n);
+        d.fill(0xFF);
         return spi.transfer(d, cb);
     }
     
-    function _stuffBuffer(n) {
-        var b = Buffer(n);
-        b.fill(0xFF);
-        return b;
-    }
-    
-    var _STUFF_BYTE = _stuffBuffer(1),
-        _WRITE0_TOK = Buffer([0xFF, 0xFE]);
-    
-    var _dbgLevel = -5;
+    var _dbgLevel = 0;//-5;
     function log(level) {
         if (level >= _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
     }
@@ -191,7 +186,7 @@ exports.use = function (port) {
             pin.output(false);
             fn(function () {
                 pin.output(true);
-                spi_send(_STUFF_BYTE, function () {
+                spi_receive(1, function () {
                     log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
                     releaseQueue();
                 });
@@ -365,12 +360,13 @@ exports.use = function (port) {
         }, true);
     }); }
     
+    var _WRITE0_TOK = Buffer([0xFF, 0xFE]);         // NOTE: stuff byte prepended, for card's timing needs
     function writeBlock(n, data, cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         if (data.length !== BLOCK_SIZE) throw Error("Must write exactly "+BLOCK_SIZE+"bytes.");
         var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
         sendCommand('WRITE_BLOCK', addr, function (e) {
             if (e) cb(e);
-            else spi_send(_WRITE0_TOK, function () {         // NOTE: token includes a stuff byte
+            else spi_send(_WRITE0_TOK, function () {         
                 spi_send(data, function () {
                     var crc = Buffer(2);
                     crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
@@ -390,11 +386,10 @@ exports.use = function (port) {
         }, true);
     }); }
     
-    // TODO: readBlocks/writeBlocks (multi support)
-    // TODO: erase/pre-erase?
+    card.readBlock = readBlock;
+    card.writeBlock = writeBlock;
     
-    card._readBlock = readBlock;
-    card._writeBlock = writeBlock;
+    // TODO: readBlocks/writeBlocks/erase (multi support)
     
     return card;
 };
