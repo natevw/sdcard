@@ -91,9 +91,6 @@ function reduceBuffer(buf, start, end, fn, res) {
     return res;
 }
 
-// WORKAROUND: https://github.com/tessel/beta/issues/356
-var process_nextTick = process.nextTick || function (fn) { setTimeout(fn, 0); };
-
 
 exports.use = function (port) {
     var card = new events.EventEmitter(),
@@ -169,7 +166,7 @@ exports.use = function (port) {
         }
         q.acquire = function (fn) {
             tasks.push(fn);
-            if (!busy) process_nextTick(runNext);
+            if (!busy) process.nextTick(runNext);
         };
         return q;
     }
@@ -198,7 +195,7 @@ exports.use = function (port) {
     function SPI_TRANSACTION_WRAPPER(cb, fn, _nested) {
         if (_nested) {
             log(log.DBG, "[nested transaction]");
-            process_nextTick(fn);
+            process.nextTick(fn);
             return cb;
         }
         
