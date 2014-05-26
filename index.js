@@ -24,6 +24,7 @@ var CMD = {
     SET_BLOCKLEN: {index:16, format:'r1'},
     READ_SINGLE_BLOCK: {index:17, format:'r1'},
     WRITE_BLOCK: {index:24, format:'r1'},
+    CRC_ON_OFF: {index:59, format:'r1'},
     
     APP_CMD: {index:55, format:'r1'},
     APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
@@ -289,27 +290,30 @@ exports.use = function (port, cb) {
                 sendCommand('GO_IDLE_STATE', function (e,d) {
                     if (e) cb(new Error("Unknown or missing card. "+e));
                     else checkVoltage(function (e) {
-                        // TODO: re-enable CRC once in SPI mode (here, or after ready?)
                         if (e) cb(e);
                         else waitForReady(0, function (e) {
-                            if (cardType) fullSteamAhead();
-                            else sendCommand('READ_OCR', function (e,d,b) {
-                                if (e) cb(new Error("Unexpected error reading card size!"));
-                                cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
-                                if (cardType === 'SDv2') sendCommand('SET_BLOCKLEN', BLOCK_SIZE, function (e) {
-                                    if (e) cb(new Error("Unexpected error settings block length!"));
-                                    else fullSteamAhead();
-                                }); else fullSteamAhead();
-                            });
-                            function fullSteamAhead() {
-                                log(log.DBG, "Init complete, switching SPI to full speed.");
-                                configureSPI('fast', function () {
-                                    // now card should be ready!
-                                    log(log.DBG, "full steam ahead!");
-                                    cb(null, cardType);
-                                        // ARROW'ED!
+                            if (e) cb(e);
+                            else sendCommand('CRC_ON_OFF', 0x01, function (e) {
+                                if (e) cb(new Error("Couldn't re-enable bus checksumming."));
+                                else if (cardType) fullSteamAhead();
+                                else sendCommand('READ_OCR', function (e,d,b) {
+                                    if (e) cb(new Error("Unexpected error reading card size!"));
+                                    cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
+                                    if (cardType === 'SDv2') sendCommand('SET_BLOCKLEN', BLOCK_SIZE, function (e) {
+                                        if (e) cb(new Error("Unexpected error settings block length!"));
+                                        else fullSteamAhead();
+                                    }); else fullSteamAhead();
                                 });
-                            }
+                                function fullSteamAhead() {
+                                    log(log.DBG, "Init complete, switching SPI to full speed.");
+                                    configureSPI('fast', function () {
+                                        // now card should be ready!
+                                        log(log.DBG, "full steam ahead!");
+                                        cb(null, cardType);
+                                            // ARROW'ED!
+                                    });
+                                }
+                            });
                         });
                     });
                 });
