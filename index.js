@@ -155,21 +155,16 @@ exports.use = function (port, cb) {
     function _serialQueue() {
         // quick-and-dirty simple serial queue, calls fn
         var q = {},
-            tasks = [],
-            busy = false;
+            tasks = [];
         function runNext() {
-            var fn = tasks.shift();         // TODO: avoid
-            if (fn) {
-                busy = true;
-                fn(function () {
-                    busy = false;
-                    runNext();
-                });
-            }
+            tasks[0](function () {
+                tasks.shift();         // TODO: avoid
+                if (tasks.length) runNext();
+            });
         }
         q.acquire = function (fn) {
-            tasks.push(fn);
-            if (!busy) process.nextTick(runNext);
+            var len = tasks.push(fn);
+            if (len === 1) process.nextTick(runNext);
         };
         return q;
     }
