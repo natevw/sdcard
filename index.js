@@ -97,7 +97,8 @@ exports.use = function (port) {
         spi = null,         // re-initialized to various settings until card is ready
         pin = port.digital[1];
     
-    var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block    
+    var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
+    card.BLOCK_SIZE = BLOCK_SIZE;
     
     // WORKAROUND: https://github.com/tessel/beta/issues/336
     function spi_send(d, cb) {
