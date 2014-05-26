@@ -362,7 +362,7 @@ exports.use = function (port, cb) {
     
     var _WRITE0_TOK = Buffer([0xFF, 0xFE]);         // NOTE: stuff byte prepended, for card's timing needs
     function writeBlock(n, data, cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
-        if (data.length !== BLOCK_SIZE) throw Error("Must write exactly "+BLOCK_SIZE+"bytes.");
+        if (data.length !== BLOCK_SIZE) throw Error("Must write exactly "+BLOCK_SIZE+" bytes.");
         var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
         sendCommand('WRITE_BLOCK', addr, function (e) {
             if (e) cb(e);
