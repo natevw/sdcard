@@ -54,7 +54,7 @@ function writeData(byteOffset, data, cb) {
         // TODO/CAUTION: this code assumes no other writes to `pos.block` have been queued meanwhile…!
         if (e) return cb(e);
         data.copy(origData, pos.offset);
-        if (OKAY_TO_WRITE_CARD) sdcard.writeBlock(pos.block, cb);
+        if (OKAY_TO_WRITE_CARD) sdcard.writeBlock(pos.block, origData, cb);
         else console.warn("Skipping actual write, modify example and set OKAY_TO_WRITE_CARD if you'd like.");
     });
 }
