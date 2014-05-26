@@ -331,7 +331,7 @@ exports.use = function (port, cb) {
         });
     }
     
-    function readBlock(n, cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+    function readBlock(n, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', addr, function (e,d) {
             if (e) cb(e);
@@ -353,10 +353,10 @@ exports.use = function (port, cb) {
                 });
             }
         }, true);
-    }); }
+    }, _nested); }
     
     var _WRITE0_TOK = Buffer([0xFF, 0xFE]);         // NOTE: stuff byte prepended, for card's timing needs
-    function writeBlock(n, data, cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+    function writeBlock(n, data, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         if (data.length !== BLOCK_SIZE) throw Error("Must write exactly "+BLOCK_SIZE+" bytes.");
         var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
         sendCommand('WRITE_BLOCK', addr, function (e) {
@@ -379,12 +379,34 @@ exports.use = function (port, cb) {
                 });
             });
         }, true);
+    }, _nested); }
+    
+    function modifyBlock(n,fn,cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+        readBlock(n, function (e, d) {
+            if (e) cb(e);
+            else try {
+                var syncData = fn(d, finish);
+                if (syncData) finish(null, d);
+            } catch (e) {
+                cb(e);
+            }
+            function finish(e, d) {
+                if (e) cb(e);
+                else writeBlock(n, d, cb, true);
+            }
+        }, true);
     }); }
     
-    card.readBlock = readBlock;
-    card.writeBlock = writeBlock;
+    // NOTE: these are wrapped to make *sure* caller doesn't accidentally opt-in to _nested flag
+    card.readBlock = function (n, cb) {
+        return readBlock(n,cb);
+    };
+    card.writeBlock = function (n, data, cb) {
+        return writeBlock(n,data,cb);
+    };
+    card._modifyBlock = modifyBlock;
     
-    // TODO: readBlocks/writeBlocks/erase (multi support)
+    // TODO: readBlocks/writeBlocks/erase (i.e. bulk/multi support)
     
     return card;
 };
