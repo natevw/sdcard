@@ -92,10 +92,12 @@ function reduceBuffer(buf, start, end, fn, res) {
 }
 
 
-exports.use = function (port) {
+exports.use = function (port, cb) {
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
         pin = port.digital[1];
+    
+    if (cb) card.on('error', cb).on('ready', cb.bind(null, null));
     
     var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
     card.BLOCK_SIZE = BLOCK_SIZE;
