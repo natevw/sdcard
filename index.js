@@ -95,7 +95,8 @@ function reduceBuffer(buf, start, end, fn, res) {
 exports.use = function (port, cb) {
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
-        pin = port.digital[1];
+        csn = port.digital[1],
+        ppn = port.digital[2];      // "physically present (negated)"
     
     if (cb) card.on('error', cb).on('ready', cb.bind(null, null));
     
@@ -178,9 +179,9 @@ exports.use = function (port, cb) {
         log(log.DBG, "----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
         spiQueue.acquire(function (releaseQueue) {
             log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
-            pin.output(false);
+            csn.output(false);
             fn(function () {
-                pin.output(true);
+                csn.output(true);
                 spi_receive(1, function () {
                     log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
                     releaseQueue();
@@ -283,7 +284,7 @@ exports.use = function (port, cb) {
             var initLen = Math.ceil(74/8),
                 initBuf = new Buffer(initLen);
             initBuf.fill(0xFF);
-            pin.output(true);
+            csn.output(true);
             spi_send(initBuf, function () {
                 sendCommand('GO_IDLE_STATE', function (e,d) {
                     if (e) cb(new Error("Unknown or missing card. "+e));
