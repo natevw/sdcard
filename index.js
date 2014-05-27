@@ -7,7 +7,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-var events = require('events');
+var events = require('events'),
+    fifolock = require('fifolock');
 
 
 var _dbgLevel = 0;//-5;
@@ -191,60 +192,28 @@ exports.use = function (port, cb) {
         return flags;
     }
     
-    function _serialQueue() {
-        // quick-and-dirty simple serial queue, calls fn
-        var q = {},
-            tasks = [];
-        function runNext() {
-            tasks[0](function () {
-                tasks.shift();         // TODO: avoid
-                if (tasks.length) runNext();
-            });
-        }
-        q.acquire = function (fn) {
-            var len = tasks.push(fn);
-            if (len === 1) process.nextTick(runNext);
-        };
-        return q;
-    }
-    
-    var spiQueue = _serialQueue();
-    
-    // executes `fn(cb)` after start; must end with `cb()`
-    var _dbgTransactionNumber = 0;
-    function spiTransaction(fn) {
-        var dbgTN = _dbgTransactionNumber++;
-        log(log.DBG, "----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
-        spiQueue.acquire(function (releaseQueue) {
-            log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
-            csn.output(false);
-            fn(function () {
+    var spiQueue = fifolock(),
+        _dbgTransactionNumber = 0;
+    function SPI_TRANSACTION_WRAPPER(cb, fn, _nested) {
+        var dbgTN;
+        return spiQueue.TRANSACTION_WRAPPER.call({
+            get postAcquire() {
+                dbgTN = _dbgTransactionNumber++;
+                log(log.DBG, "----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
+                return function (proceed) {
+                    log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
+                    csn.output(false);
+                    proceed();
+                };
+            },
+            preRelease: function (finish) {
                 csn.output(true);
                 spi_receive(1, function () {
                     log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
-                    releaseQueue();
+                    finish();
                 });
-            });
-        });
-    }
-    
-    // usage: `cb = SPI_TRANSACTION_WRAPPER(cb, function () { …code… });`
-    function SPI_TRANSACTION_WRAPPER(cb, fn, _nested) {
-        if (_nested) {
-            log(log.DBG, "[nested transaction]");
-            process.nextTick(fn);
-            return cb;
-        }
-        
-        var _releaseSPI;
-        spiTransaction(function (releaseSPI) {
-            _releaseSPI = releaseSPI;
-            fn();
-        });
-        return function _cb() {
-            _releaseSPI();
-            cb.apply(this, arguments);
-        };
+            }
+        }, cb, fn, _nested);
     }
     
     var cmdBuffer = new Buffer(6 + 8 + 5);
