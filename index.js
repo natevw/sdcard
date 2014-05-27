@@ -195,16 +195,16 @@ exports.use = function (port, cb) {
     var spiQueue = fifolock(),
         _dbgTransactionNumber = 0;
     function SPI_TRANSACTION_WRAPPER(cb, fn, _nested) {
-        var dbgTN;
+        var dbgTN = _dbgTransactionNumber;
+        if (!_nested) {
+            dbgTN = _dbgTransactionNumber++;
+            log(log.DBG, "----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
+        }
         return spiQueue.TRANSACTION_WRAPPER.call({
-            get postAcquire() {
-                dbgTN = _dbgTransactionNumber++;
-                log(log.DBG, "----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
-                return function (proceed) {
-                    log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
-                    csn.output(false);
-                    proceed();
-                };
+            postAcquire: function (proceed) {
+                log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
+                csn.output(false);
+                proceed();
             },
             preRelease: function (finish) {
                 csn.output(true);
