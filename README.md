@@ -38,7 +38,8 @@ var sdcard = require('../').use(tessel.port['A'], function (e) {
 
 ## API Reference
 
-* `require('sdcard').use(port, [cb])` — Initialize the card driver with the given Tessel port. You may provide an optional callback taking `(err)` which will be registered for the `ready` and `error` (if error parameter not `null`) events.
+* `var sdcard = require('sdcard').use(port, [cb])` — Initialize the card driver with the given Tessel port. You may provide an optional callback taking `(err)` which will be registered for the `ready` and `error` (if error parameter not `null`) events.
+* `sdcard.isPresent()` — returns `true` if there is something physically in the slot, `false` if not. Can be called regardless of whether the card is ready or not, unlike the read/write calls below.
 
 * `'ready'` event — fired when the card interface has been initialized and is ready to use.
 * `'error'` event — fired if the card interface could not become ready.
