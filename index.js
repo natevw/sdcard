@@ -9,7 +9,15 @@
 
 var events = require('events');
 
-// TODO: card insertion status
+
+var _dbgLevel = 0;//-5;
+function log(level) {
+    if (level >= _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
+}
+log.DBG = -4;
+log.INFO = -3;
+log.WARN = -2;
+log.ERR = -1;
 
 
 // see http://elm-chan.org/docs/mmc/mmc_e.html
@@ -99,10 +107,48 @@ exports.use = function (port, cb) {
         csn = port.digital[1],
         ppn = port.digital[2];      // "physically present (negated)"
     
+    csn.output();
+    ppn.input();
+    
     if (cb) card.on('error', cb).on('ready', cb.bind(null, null));
     
-    var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
-    card.BLOCK_SIZE = BLOCK_SIZE;
+    var ready, waiting;
+    card.restart = function () {
+        ready = false;
+        waiting = true;
+        updateCardStatus();
+    };
+    
+    var cardPresent;
+    function updateCardStatus() {
+        var newCardPresent = !ppn.read();
+        log(log.DBG, "updateCardStatus", newCardPresent, cardPresent);
+        if (newCardPresent === cardPresent) return;
+        else cardPresent = newCardPresent;
+        
+        var event = (cardPresent) ? 'inserted' : 'removed';
+        log(log.INFO, "Card status:", event);
+        card.emit(event);
+        
+        if (cardPresent && waiting) {
+            waiting = false;            // caller must call `.restart()` to opt-in to another 'ready' event
+            setTimeout(getCardReady.bind(null, function (e,d) {
+                if (e) card.emit('error', e);
+                else {
+                    ready = true;
+                    card.emit('ready');
+                }
+            }), 1);      // spec requires 1ms after powerup before init sequence
+        }
+    }
+    card.isPresent = function () {
+        return cardPresent;
+    };
+    //ppn.watch('change', updateCardStatus);
+    // WORKAROUND: https://github.com/tessel/beta/issues/388 https://github.com/tessel/beta/issues/389
+    ppn.watch('rise', updateCardStatus);
+    
+    // ---- CORE SPI/COMMAND HELPERS ----
     
     // WORKAROUND: https://github.com/tessel/beta/issues/336
     function spi_send(d, cb) {
@@ -113,15 +159,6 @@ exports.use = function (port, cb) {
         d.fill(0xFF);
         return spi.transfer(d, cb);
     }
-    
-    var _dbgLevel = 0;//-5;
-    function log(level) {
-        if (level >= _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
-    }
-    log.DBG = -4;
-    log.INFO = -3;
-    log.WARN = -2;
-    log.ERR = -1;
     
     function configureSPI(speed, cb) {           // 'pulse', 'init', 'fullspeed'
         spi = new port.SPI({
@@ -250,6 +287,12 @@ exports.use = function (port, cb) {
         }
     }, _nested); }
     
+    
+    // ---- INITIALIZATION DANCE ----
+    
+    var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
+    card.BLOCK_SIZE = BLOCK_SIZE;
+    
     function getCardReady(cb) {
         // see http://elm-chan.org/docs/mmc/gx1/sdinit.png
         // and https://www.sdcard.org/downloads/pls/simplified_specs/part1_410.pdf Figure 7-2
@@ -320,11 +363,11 @@ exports.use = function (port, cb) {
             });
         });
     }
-    getCardReady(function (e,d) {
-        if (e) card.emit('error', e);
-        else card.emit('ready');
-    });
     
+    card.restart();
+    
+    
+    // ---- NORMAL COMMUNICATIONS STUFF ----
     
     function waitForIdle(tries, cb) {
         log(log.DBG, "Waiting for idle,", tries, "more tries.");
@@ -404,9 +447,11 @@ exports.use = function (port, cb) {
     
     // NOTE: these are wrapped to make *sure* caller doesn't accidentally opt-in to _nested flag
     card.readBlock = function (n, cb) {
+        if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
         return readBlock(n,cb);
     };
     card.writeBlock = function (n, data, cb) {
+        if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
         return writeBlock(n,data,cb);
     };
     card._modifyBlock = modifyBlock;

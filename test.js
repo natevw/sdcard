@@ -6,10 +6,11 @@ function h(n, pad) {
     return (pad+1+n).toString(16).slice(1);
 }
 
-
 var card = sdcard.use(tessel.port['A']);
+
+console.log("Card", (card.isPresent()) ? "present" : "absent", "at startup.");
 card.on('ready', function () {
-    console.log("CARD READY");
+    console.log("Card now ready!");
     
     var b = Buffer(512);
     b.fill(0x42);
@@ -37,4 +38,9 @@ card.on('ready', function () {
         });
     }
     */
+});
+
+card.on('removed', function () {
+    console.log("Card removed, waiting for it again…");
+    card.restart();
 });

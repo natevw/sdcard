@@ -38,15 +38,20 @@ var sdcard = require('../').use(tessel.port['A'], function (e) {
 
 ## API Reference
 
-* `'ready'` event — fired when the card has been initialized and is ready to use.
+* `require('sdcard').use(port, [cb])` — Initialize the card driver with the given Tessel port. You may provide an optional callback taking `(err)` which will be registered for the `ready` and `error` (if error parameter not `null`) events.
 
-* `'error'` event — fired if the card could not become ready.
+* `'ready'` event — fired when the card interface has been initialized and is ready to use.
+* `'error'` event — fired if the card interface could not become ready.
+* `'inserted'` event — fired when the card has been physically inserted (communications probably not initialized yet!)
+* `'removed'` event — fired when the card has been physically removed
 
-**TBD**: automatic sense pin handling (probably will emit `'ready'` *each time* a (potentially different) card becomes ready and a 'removed'-or-something event when one disappears).
+* `sdcard.restart()` — The card driver will normally only fire the `'ready'` (or `'error'`) event once, after the first time a card is inserted and successfully (or unsuccessfully) initialized. If you wish to receive once of those events again, call `.restart()` on either the `'removed'` or `'inserted'` events and the driver will attempt to re-initialize the SD Card.
 
 * `sdcard.readBlock(n, cb)` — reads the `n`th 512-byte block of data. Callback receives up to two arguments `(error, data)`, note that if `error` is not `null` then the value of the `data` parameter is undetermined.
 
 * `sdcard.writeBlock(n, data, cb)` — overwrites the `n`th block with `data`, which must be exactly 512 bytes long. Callback is given `(error)`, which will be `null` if the write was successful.
+
+**TBD**: expose atomic `.modifyBlock` helper?
 
 **TBD**: expose how many blocks the card has available!
 
