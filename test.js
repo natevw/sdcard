@@ -21,6 +21,10 @@ card.on('ready', function () {
 //        });
 //    });
     
+    
+var otherSPI = tessel.port["B"].SPI();
+otherSPI.on('ready', function () {
+
     var b = Buffer(512);
     b.fill(0x42);
     //b.write("Tessel was here", 42);
@@ -28,13 +32,19 @@ card.on('ready', function () {
     b[43] = 0xCD;
     b[44] = 0xEF;
     card.writeBlock(2, b, function (e) {
+console.log("write done");
         if (e) console.error("READ FAILED", e);
         else card.readBlock(2, function (e,d) {
             console.log(b.slice(0, 16), b.slice(496));
-            console.log(d.slice(0, 16), d.slice(496));
+            console.log(d && d.slice(0, 16), d && d.slice(496));
         });
     
     });
+    
+    otherSPI.transfer(Buffer(7), function (e,d) {
+        console.log("otherSPI transfer done");
+    });
+});
     /*
     for (var i = 0; i < 16; ++i) readBlock(i);
     function readBlock(n) {
