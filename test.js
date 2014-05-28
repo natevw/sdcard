@@ -21,6 +21,7 @@ card.on('ready', function () {
         });
     });
     
+    return;
     var b = Buffer(512);
     b.fill(0x42);
     //b.write("Tessel was here", 42);
