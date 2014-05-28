@@ -157,7 +157,7 @@ exports.use = function (port, cb) {
             if (e) cb(e);
             var info;
             try {
-                info = parsetition(d);
+                info = parsetition.parse(d);
             } catch (e) {
                 return cb(e);
             }

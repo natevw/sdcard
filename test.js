@@ -12,6 +12,15 @@ console.log("Card", (card.isPresent()) ? "present" : "absent", "at startup.");
 card.on('ready', function () {
     console.log("Card now ready!");
     
+    card.getFilesystems(function (e,arr) {
+        if (e) throw e;
+        else if (!arr.length) throw Error("No filesystems found!");
+        else arr[0].readdir("/", function (e,files) {
+            if (e) throw e;
+            console.log("Filesytem contains:", files);
+        });
+    });
+    
     var b = Buffer(512);
     b.fill(0x42);
     //b.write("Tessel was here", 42);
