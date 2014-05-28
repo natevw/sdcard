@@ -107,8 +107,8 @@ function reduceBuffer(buf, start, end, fn, res) {
 exports.use = function (port, cb) {
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
-        csn = port.digital[1],
-        ppn = port.digital[2];      // "physically present (negated)"
+        csn = port.pin['G1'],
+        ppn = port.pin['G2'];      // "physically present (negated)"
     
     csn.output();
     ppn.input();
