@@ -258,8 +258,8 @@ exports.use = function (port, cb) {
         
         return spiQueue.TRANSACTION_WRAPPER.call({
             postAcquire: function (proceed) {
-                log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
                 spi.lock(function (e, lock) {
+                    log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
                     lockedSPI = lock;
                     csn.output(false);
                     proceed();

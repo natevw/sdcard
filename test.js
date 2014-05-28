@@ -35,6 +35,7 @@ otherSPI.on('ready', function () {
 console.log("write done");
         if (e) console.error("READ FAILED", e);
         else card.readBlock(2, function (e,d) {
+            if (e) console.error(e);
             console.log(b.slice(0, 16), b.slice(496));
             console.log(d && d.slice(0, 16), d && d.slice(496));
         });
