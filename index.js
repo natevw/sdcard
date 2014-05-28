@@ -433,6 +433,7 @@ exports.use = function (port, cb) {
                     crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
                     spi_send(crc, function () {
                         // TODO: why do things lock up here if `spi_receive(>8 bytes, …)` (?!)
+                        // NOTE: above comment was https://github.com/tessel/beta/issues/359
                         spi_receive(1+1, function (e,d) {    // data response + timing byte
                             log(log.DBG, "Data response was:", d);
                             
