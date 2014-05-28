@@ -8,8 +8,10 @@
 // except according to those terms.
 
 var events = require('events'),
-    fifolock = require('fifolock');
-
+    fifolock = require('fifolock'),
+    parsetition = require('parsetition'),
+    fatfs = require('fatfs'),
+    queue = require('queue-async');
 
 var _dbgLevel = 0;//-5;
 function log(level) {
@@ -148,6 +150,52 @@ exports.use = function (port, cb) {
     //ppn.watch('change', updateCardStatus);
     // WORKAROUND: https://github.com/tessel/beta/issues/388 https://github.com/tessel/beta/issues/389
     ppn.watch('rise', updateCardStatus);
+    
+    
+    card.getFilesystems = function (cb) {
+        card.readBlock(0, function (e, d) {
+            if (e) cb(e);
+            var info;
+            try {
+                info = parsetition(d);
+            } catch (e) {
+                return cb(e);
+            }
+            if (info.sectorSize !== BLOCK_SIZE) return cb(new Error("Sector size mismatch!"));
+            
+            var q = queue();
+            info.partitions.forEach(function (p) {
+                // TODO: less fragile type detection
+                if (p.type.indexOf('fat') === 0) q.defer(initFS, p);
+            });
+            function initFS(p, cb) {
+                card.readBlock(p.firstSector, function (e,d) {
+                    if (e) return cb(e);
+                    
+                    var fs, volDriver = {
+                        sectorSize: info.sectorSize,
+                        numSectors: p.numSectors,
+                        readSector: function (n, cb) {
+                            if (n > p.numSectors) throw Error("Invalid sector request!");
+                            card.readBlock(p.firstSector+n, cb);
+                        },
+                        writeSector: function (n, data, cb) {
+                            if (n > p.numSectors) throw Error("Invalid sector request!");
+                            card.writeBlock(p.firstSector+n, data, cb);
+                        }
+                    };
+                    try {
+                        fs = fatfs.createFileSystem(volDriver, d);
+                        cb(null, fs);
+                    } catch (e) {
+                        cb(e);
+                    }
+                });
+            }
+            q.awaitAll(cb);
+        });
+    };
+    
     
     // ---- CORE SPI/COMMAND HELPERS ----
     
