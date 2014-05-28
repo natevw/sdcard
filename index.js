@@ -13,7 +13,7 @@ var events = require('events'),
     fatfs = require('fatfs'),
     queue = require('queue-async');
 
-var _dbgLevel = 0;//-5;
+var _dbgLevel = -50;//-5;
 function log(level) {
     if (level >= _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
 }
@@ -200,13 +200,19 @@ exports.use = function (port, cb) {
     // ---- CORE SPI/COMMAND HELPERS ----
     
     // WORKAROUND: https://github.com/tessel/beta/issues/336
+    // (and now to handle https://github.com/tessel/firmware/issues/109 too)
+    var lockedSPI = null;
+    function spi_transfer(d, cb) {
+        if (lockedSPI) lockedSPI.rawTransfer(d, cb);
+        else spi.transfer(d, cb);
+    }
     function spi_send(d, cb) {
-        return spi.transfer(d, cb);
+        return spi_transfer(d, cb);
     }
     function spi_receive(n, cb) {
         var d = Buffer(n);
         d.fill(0xFF);
-        return spi.transfer(d, cb);
+        return spi_transfer(d, cb);
     }
     
     function configureSPI(speed, cb) {           // 'pulse', 'init', 'fullspeed'
@@ -249,16 +255,22 @@ exports.use = function (port, cb) {
             dbgTN = _dbgTransactionNumber++;
             log(log.DBG, "----- SPI QUEUE REQUESTED -----", '#'+dbgTN);
         }
+        
         return spiQueue.TRANSACTION_WRAPPER.call({
             postAcquire: function (proceed) {
                 log(log.DBG, "----- SPI QUEUE ACQUIRED -----", '#'+dbgTN);
-                csn.output(false);
-                proceed();
+                spi.lock(function (e, lock) {
+                    lockedSPI = lock;
+                    csn.output(false);
+                    proceed();
+                });
             },
             preRelease: function (finish) {
                 csn.output(true);
                 spi_receive(1, function () {
                     log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
+                    lockedSPI.release();
+                    lockedSPI = null;
                     finish();
                 });
             }
@@ -291,7 +303,7 @@ exports.use = function (port, cb) {
             cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
             cmdBuffer.fill(0xFF, 6);
             log(log.DBG, "* sending data:", cmdBuffer);
-            spi.transfer(cmdBuffer, function (e,d) {
+            spi_transfer(cmdBuffer, function (e,d) {
                 log(log.DBG, "TRANSFER RESULT", d);
                 
                 // response not sent until after command; it will start with a 0 bit
