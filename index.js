@@ -219,22 +219,6 @@ exports.use = function (port, cb) {
         spi.on('ready', cb);
     }
     
-    function findResponse(d, opts) {
-        opts || (opts = {});
-        var idx = opts.start || 0, len = d.length,
-            size = opts.size, tok = opts.token;
-        if (tok) while (idx < len) {          // data response token varies
-             if (d[idx] === tok) break;
-             else if (d[idx] & 0x80) ++idx;
-             else {     // error token!
-                 size = 1;
-                 break;
-            }
-        }
-        else while (idx < len && d[idx] & 0x80) ++idx;          // command responses when 0 in MSB
-        return (idx < len) ? d.slice(idx, idx+size) : Buffer(0);        // WORKAROUND: https://github.com/tessel/beta/issues/338
-    }
-    
     function _parseR1(r1) {
         var flags = [];
         Object.keys(R1_FLAGS).forEach(function (k) {
@@ -275,7 +259,6 @@ exports.use = function (port, cb) {
         }, cb, fn, _nested);
     }
     
-    var cmdBuffer = new Buffer(6 + 8 + 5);
     function sendCommand(cmd, arg, cb, _nested) {
         if (typeof arg === 'function') {
             _nested = cb;
@@ -295,6 +278,7 @@ exports.use = function (port, cb) {
         
         function _sendCommand(idx, arg, cb) {
             log(log.DBG, '_sendCommand', idx, '0x'+arg.toString(16));
+            var cmdBuffer = new Buffer(6);
             cmdBuffer[0] = 0x40 | idx;
             cmdBuffer.writeUInt32BE(arg, 1);
             //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
@@ -303,14 +287,26 @@ exports.use = function (port, cb) {
             log(log.DBG, "* sending data:", cmdBuffer);
             spi_transfer(cmdBuffer, function (e,d) {
                 log(log.DBG, "TRANSFER RESULT", d);
+                if (e) cb(e);
+                else waitForResponse(8);
+                function waitForResponse(tries) {
+                    if (!tries) cb(new Error("Timed out waiting for reponse."));
+                    else spi_receive(1, function (e, rd) {
+                        log(log.DBG, "while waiting for response got", rd);
+                        if (e) cb(e);
+                        else if (rd[0] & 0x80) waitForResponse(tries-1);
+                        else finish(rd[0]);
+                    });
+                }
+                function finish(r1) {
+                    var additionalBytes = RESP_LEN[command.format]-1;
+                    if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set: "+_parseR1(r1)), r1);
+                    else if (additionalBytes) spi_receive(additionalBytes, function (e, d) {
+                        cb(e, r1, d);
+                    });
+                    else cb(null, r1);
+                }
                 
-                // response not sent until after command; it will start with a 0 bit
-                d = findResponse(d, {start:6, size:RESP_LEN[command.format]});
-                if (!d.length) return cb(new Error("No response from card!"));
-                
-                var r1 = d[0];
-                if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set: "+_parseR1(r1)), r1);
-                else cb(null, r1, d.slice(1));
             });
         }
     }, _nested); }
