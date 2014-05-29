@@ -229,7 +229,6 @@ exports.use = function (port, cb) {
     
     var spiQueue = fifolock(),
         _dbgTransactionNumber = 0;
-    // TODO: negotiate actual device-wide locks too https://github.com/tessel/firmware/issues/109
     function SPI_TRANSACTION_WRAPPER(cb, fn, _nested) {
         var dbgTN = _dbgTransactionNumber;
         if (!_nested) {
