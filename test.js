@@ -33,7 +33,7 @@ otherSPI.on('ready', function () {
     b[44] = 0xEF;
     card.writeBlock(2, b, function (e) {
 console.log("write done");
-        if (e) console.error("READ FAILED", e);
+        if (e) console.error("WRITE FAILED", e);
         else card.readBlock(2, function (e,d) {
             if (e) console.error(e);
             console.log(b.slice(0, 16), b.slice(496));
@@ -42,9 +42,9 @@ console.log("write done");
     
     });
     
-    otherSPI.transfer(Buffer(7), function (e,d) {
-        console.log("otherSPI transfer done");
-    });
+//    otherSPI.transfer(Buffer(7), function (e,d) {
+//        console.log("otherSPI transfer done");
+//    });
 });
     /*
     for (var i = 0; i < 16; ++i) readBlock(i);
@@ -58,6 +58,10 @@ console.log("write done");
         });
     }
     */
+});
+
+card.on('error', function (e) {
+    console.error("Couldn't initialize card.", e);
 });
 
 card.on('removed', function () {
