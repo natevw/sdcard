@@ -272,13 +272,23 @@ exports.use = function (port, cb) {
         if (command.app_cmd) {
             _sendCommand(CMD.APP_CMD.index, 0, function (e) {
                 if (e) cb(e);
-                else _sendCommand(command.index, arg, cb);
+                else {
+                    // cycling CSN here between the two commands prevents mis-aligned response to the second
+                    // NOTE: http://www.lpcware.com/content/forum/sd-card-interfacing pessimistic re. alignment
+                    //       but I've only ever seen misalignment when forgetting to handle CSN+settle properly
+                    csn.output(true);       // start a new 
+                    spi_receive(1, function () {
+                        csn.output(false);
+                        _sendCommand(command.index, arg, cb);
+                    });
+                }
             });
         } else _sendCommand(command.index, arg, cb);
         
         function _sendCommand(idx, arg, cb) {
             log(log.DBG, '_sendCommand', idx, '0x'+arg.toString(16));
             var cmdBuffer = new Buffer(6);
+//cmdBuffer = new Buffer(6+8+5);
             cmdBuffer[0] = 0x40 | idx;
             cmdBuffer.writeUInt32BE(arg, 1);
             //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
@@ -290,6 +300,7 @@ exports.use = function (port, cb) {
                 if (e) cb(e);
                 else waitForResponse(8);
                 function waitForResponse(tries) {
+//return cb(null, 0x01, new Buffer([0x00, 0x00, 0x01, 0xAA]));
                     if (!tries) cb(new Error("Timed out waiting for reponse."));
                     else spi_receive(1, function (e, rd) {
                         log(log.DBG, "while waiting for response got", rd);
