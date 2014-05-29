@@ -266,9 +266,10 @@ exports.use = function (port, cb) {
                 csn.output(true);
                 spi_receive(1, function () {
                     log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
-                    lockedSPI.release();
-                    lockedSPI = null;
-                    finish();
+                    lockedSPI.release(function () {
+                        lockedSPI = null;
+                        finish();
+                    });
                 });
             }
         }, cb, fn, _nested);
