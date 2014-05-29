@@ -147,10 +147,7 @@ exports.use = function (port, cb) {
     card.isPresent = function () {
         return cardPresent;
     };
-    //ppn.watch('change', updateCardStatus);
-    // WORKAROUND: https://github.com/tessel/beta/issues/388 https://github.com/tessel/beta/issues/389
-    ppn.watch('rise', updateCardStatus);
-    
+    ppn.on('change', updateCardStatus);
     
     card.getFilesystems = function (cb) {
         card.readBlock(0, function (e, d) {
