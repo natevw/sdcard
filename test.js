@@ -12,14 +12,14 @@ console.log("Card", (card.isPresent()) ? "present" : "absent", "at startup.");
 card.on('ready', function () {
     console.log("Card now ready!");
     
-//    card.getFilesystems(function (e,arr) {
-//        if (e) throw e;
-//        else if (!arr.length) throw Error("No filesystems found!");
-//        else arr[0].readdir("/", function (e,files) {
-//            if (e) throw e;
-//            console.log("Filesytem contains:", files);
-//        });
-//    });
+    card.getFilesystems(function (e,arr) {
+        if (e) throw e;
+        else if (!arr.length) throw Error("No filesystems found!");
+        else arr[0].readdir("/", function (e,files) {
+            if (e) throw e;
+            console.log("Filesytem contains:", files);
+        });
+    });
     
     
 var otherSPI = tessel.port["B"].SPI();
@@ -32,19 +32,22 @@ otherSPI.on('ready', function () {
     b[43] = 0xCD;
     b[44] = 0xEF;
     card.writeBlock(2, b, function (e) {
-console.log("write done");
+        console.log("writeBlock done");
         if (e) console.error("WRITE FAILED", e);
         else card.readBlock(2, function (e,d) {
             if (e) console.error(e);
-            console.log(b.slice(0, 16), b.slice(496));
-            console.log(d && d.slice(0, 16), d && d.slice(496));
+            console.log("writ:", b.slice(0, 16), b.slice(496));
+            console.log("read:", d && d.slice(0, 16), d && d.slice(496));
         });
     
     });
     
-//    otherSPI.transfer(Buffer(7), function (e,d) {
-//        console.log("otherSPI transfer done");
-//    });
+    // attempt to throw a wrench; shouldn't affect SD communications though!
+    setTimeout(function () {
+        otherSPI.transfer(Buffer(7), function (e,d) {
+            console.log("otherSPI transfer done");
+        });
+    }, Math.random() * 100);
 });
     /*
     for (var i = 0; i < 16; ++i) readBlock(i);
