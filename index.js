@@ -13,7 +13,7 @@ var events = require('events'),
     fatfs = require('fatfs'),
     queue = require('queue-async');
 
-var _dbgLevel = -50;//-5;
+var _dbgLevel = 0;//-5;
 function log(level) {
     if (level >= _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
 }
@@ -288,7 +288,6 @@ exports.use = function (port, cb) {
         function _sendCommand(idx, arg, cb) {
             log(log.DBG, '_sendCommand', idx, '0x'+arg.toString(16));
             var cmdBuffer = new Buffer(6);
-//cmdBuffer = new Buffer(6+8+5);
             cmdBuffer[0] = 0x40 | idx;
             cmdBuffer.writeUInt32BE(arg, 1);
             //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
@@ -300,7 +299,6 @@ exports.use = function (port, cb) {
                 if (e) cb(e);
                 else waitForResponse(8);
                 function waitForResponse(tries) {
-//return cb(null, 0x01, new Buffer([0x00, 0x00, 0x01, 0xAA]));
                     if (!tries) cb(new Error("Timed out waiting for reponse."));
                     else spi_receive(1, function (e, rd) {
                         log(log.DBG, "while waiting for response got", rd);
