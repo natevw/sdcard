@@ -216,7 +216,8 @@ exports.use = function (port, cb) {
         spi = new port.SPI({
             clockSpeed: (speed === 'fast') ? 2*1000*1000 : 200*1000
         });
-        spi.on('ready', cb);
+        //spi.on('ready', cb);
+        process.nextTick(cb);
     }
     
     function _parseR1(r1) {
