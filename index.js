@@ -186,7 +186,7 @@ exports.use = function (port, cb) {
                     }
                 }, cache = {};
                 if (opts.volumesOnly) q.defer(function (cb) { cb(null, vol); });
-                else if (p.type.indexOf('fat') === 0) q.defer(initFS, p);       // TODO: less fragile type detection
+                else if (p.type.indexOf('fat') === 0) q.defer(initFS, vol);       // TODO: less fragile type detection
             });
             function initFS(vol, cb) {
                 var fs = fatfs.createFileSystem(vol, function (e) { if (e) cb(e); else cb(null, fs); });
