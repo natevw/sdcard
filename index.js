@@ -149,7 +149,11 @@ exports.use = function (port, cb) {
     };
     ppn.on('change', updateCardStatus);
     
-    card.getFilesystems = function (cb) {
+    card.getFilesystems = function (opts, cb) {
+        if (typeof opts === 'function') {
+            cb = opts;
+            opts = {};
+        }
         card.readBlock(0, function (e, d) {
             if (e) cb(e);
             var info;
@@ -163,32 +167,25 @@ exports.use = function (port, cb) {
             var q = queue();
             info.partitions.forEach(function (p) {
                 // TODO: less fragile type detection
-                if (p.type.indexOf('fat') === 0) q.defer(initFS, p);
-            });
-            function initFS(p, cb) {
-                card.readBlock(p.firstSector, function (e,d) {
-                    if (e) return cb(e);
-                    
-                    var fs, volDriver = {
-                        sectorSize: info.sectorSize,
-                        numSectors: p.numSectors,
-                        readSector: function (n, cb) {
-                            if (n > p.numSectors) throw Error("Invalid sector request!");
-                            card.readBlock(p.firstSector+n, cb);
-                        },
-                        writeSector: function (n, data, cb) {
-                            if (n > p.numSectors) throw Error("Invalid sector request!");
-                            card.writeBlock(p.firstSector+n, data, cb);
-                        }
-                    };
-                    try {
-                        fs = fatfs.createFileSystem(volDriver, d);
-                        cb(null, fs);
-                    } catch (e) {
-                        cb(e);
+                var vol = {
+                    sectorSize: info.sectorSize,
+                    numSectors: p.numSectors,
+                    readSector: function (n, cb) {
+                        if (n > p.numSectors) throw Error("Invalid sector request!");
+                        card.readBlock(p.firstSector+n, cb);
+                    },
+                    writeSector: function (n, data, cb) {
+                        if (n > p.numSectors) throw Error("Invalid sector request!");
+                        card.writeBlock(p.firstSector+n, data, cb);
                     }
-                });
+                };
+                if (opts.volumesOnly) q.defer(function (cb) { cb(null, vol); });
+                else if (p.type.indexOf('fat') === 0) q.defer(initFS, p);
+            });
+            function initFS(vol, cb) {
+                var fs = fatfs.createFileSystem(vol, function (e) { if (e) cb(e); else cb(null, fs); });
             }
+            // TODO: if one `fs` fails do we really want to error them all?
             q.awaitAll(cb);
         });
     };
