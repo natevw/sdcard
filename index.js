@@ -166,21 +166,27 @@ exports.use = function (port, cb) {
             
             var q = queue();
             info.partitions.forEach(function (p) {
-                // TODO: less fragile type detection
                 var vol = {
                     sectorSize: info.sectorSize,
                     numSectors: p.numSectors,
                     readSector: function (n, cb) {
                         if (n > p.numSectors) throw Error("Invalid sector request!");
-                        card.readBlock(p.firstSector+n, cb);
+                        if (cache.n === n) process.nextTick(cb.bind(null, null, cache.d));
+                        else card.readBlock(p.firstSector+n, function (e,d) {
+                            if (e) return cb(e);
+                            cache.n = n;
+                            cache.d = d;
+                            cb(null, d);
+                        });
                     },
                     writeSector: function (n, data, cb) {
                         if (n > p.numSectors) throw Error("Invalid sector request!");
+                        if (cache.n === n) cache.n = cache.d = null;
                         card.writeBlock(p.firstSector+n, data, cb);
                     }
-                };
+                }, cache = {};
                 if (opts.volumesOnly) q.defer(function (cb) { cb(null, vol); });
-                else if (p.type.indexOf('fat') === 0) q.defer(initFS, p);
+                else if (p.type.indexOf('fat') === 0) q.defer(initFS, p);       // TODO: less fragile type detection
             });
             function initFS(vol, cb) {
                 var fs = fatfs.createFileSystem(vol, function (e) { if (e) cb(e); else cb(null, fs); });
