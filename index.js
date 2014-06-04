@@ -169,20 +169,20 @@ exports.use = function (port, cb) {
                 var vol = {
                     sectorSize: info.sectorSize,
                     numSectors: p.numSectors,
-                    readSector: function (n, cb) {
-                        if (n > p.numSectors) throw Error("Invalid sector request!");
-                        if (cache.n === n) process.nextTick(cb.bind(null, null, cache.d));
-                        else card.readBlock(p.firstSector+n, function (e,d) {
+                    readSector: function (i, cb) {
+                        if (i > p.numSectors) throw Error("Invalid sector request!");
+                        if (cache.i === i) process.nextTick(cb.bind(null, null, cache.d));
+                        else card.readBlock(p.firstSector+i, function (e,d) {
                             if (e) return cb(e);
-                            cache.n = n;
+                            cache.i = i;
                             cache.d = d;
                             cb(null, d);
                         });
                     },
-                    writeSector: function (n, data, cb) {
-                        if (n > p.numSectors) throw Error("Invalid sector request!");
-                        if (cache.n === n) cache.n = cache.d = null;
-                        card.writeBlock(p.firstSector+n, data, cb);
+                    writeSector: function (i, data, cb) {
+                        if (i > p.numSectors) throw Error("Invalid sector request!");
+                        if (cache.i === i) cache.i = cache.d = null;
+                        card.writeBlock(p.firstSector+i, data, cb);
                     }
                 }, cache = {};
                 if (opts.volumesOnly) q.defer(function (cb) { cb(null, vol); });
@@ -415,8 +415,8 @@ exports.use = function (port, cb) {
         });
     }
     
-    function readBlock(n, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
-        var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
+    function readBlock(i, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+        var addr = (cardType === 'SDv2+block') ? i : i * BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', addr, function (e,d) {
             if (e) cb(e);
             else waitForData(0);
@@ -432,7 +432,7 @@ exports.use = function (port, cb) {
                             crcError = (crc0 !== crc1);*/
                         var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
                         if (crcError) cb(new Error("Checksum error on data transfer!"));
-                        else cb(null, d.slice(0,d.length-2), n);       // WORKAROUND: https://github.com/tessel/beta/issues/339
+                        else cb(null, d.slice(0,d.length-2), i);       // WORKAROUND: https://github.com/tessel/beta/issues/339
                     });
                 });
             }
@@ -440,9 +440,9 @@ exports.use = function (port, cb) {
     }, _nested); }
     
     var _WRITE0_TOK = Buffer([0xFF, 0xFE]);         // NOTE: stuff byte prepended, for card's timing needs
-    function writeBlock(n, data, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+    function writeBlock(i, data, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         if (data.length !== BLOCK_SIZE) throw Error("Must write exactly "+BLOCK_SIZE+" bytes.");
-        var addr = (cardType === 'SDv2+block') ? n : n * BLOCK_SIZE;
+        var addr = (cardType === 'SDv2+block') ? i : i * BLOCK_SIZE;
         sendCommand('WRITE_BLOCK', addr, function (e) {
             if (e) cb(e);
             else spi_send(_WRITE0_TOK, function () {         
@@ -466,8 +466,8 @@ exports.use = function (port, cb) {
         }, true);
     }, _nested); }
     
-    function modifyBlock(n,fn,cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
-        readBlock(n, function (e, d) {
+    function modifyBlock(i,fn,cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+        readBlock(i, function (e, d) {
             if (e) cb(e);
             else try {
                 var syncData = fn(d, finish);
@@ -477,19 +477,19 @@ exports.use = function (port, cb) {
             }
             function finish(e, d) {
                 if (e) cb(e);
-                else writeBlock(n, d, cb, true);
+                else writeBlock(i, d, cb, true);
             }
         }, true);
     }); }
     
     // NOTE: these are wrapped to make *sure* caller doesn't accidentally opt-in to _nested flag
-    card.readBlock = function (n, cb) {
+    card.readBlock = function (i, cb) {
         if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
-        return readBlock(n,cb);
+        return readBlock(i,cb);
     };
-    card.writeBlock = function (n, data, cb) {
+    card.writeBlock = function (i, data, cb) {
         if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
-        return writeBlock(n,data,cb);
+        return writeBlock(i,data,cb);
     };
     card._modifyBlock = modifyBlock;
     
