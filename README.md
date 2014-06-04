@@ -53,9 +53,11 @@ var sdcard = require('../').use(tessel.port['A'], function (e) {
 
 ## Low level (raw) API
 
-* `sdcard.readBlock(n, cb)` — reads the `n`th 512-byte block of data. Callback receives up to two arguments `(error, data)`, note that if `error` is not `null` then the value of the `data` parameter is undetermined.
+* `sdcard.readBlock(i, cb)` — reads the `i`th block of data. Callback receives up to two arguments `(error, data)`, note that if `error` is not `null` then the value of the `data` parameter is undetermined.
 
-* `sdcard.writeBlock(n, data, cb)` — overwrites the `n`th block with `data`, which must be exactly 512 bytes long. Callback is given `(error)`, which will be `null` if the write was successful.
+* `sdcard.readBlocks(i, buffer, cb)` — starting at the `i`th block, reads multiple blocks into `buffer` and calls `cb(err, bytesRead, buffer)` when done. For large contiguous reads, this can be more efficient than multiple `sdcard.readBlock` calls.  The destination buffer's length need not be an integer multiple of `sdcard.BLOCK_SIZE`; any extra data from the final block will simply be discarded. [Right now, `bytesRead` will always equal `buffer.length` and you are responsible for not reading off the end of the card. This may change in the future to do a partial read instead.]
+
+* `sdcard.writeBlock(i, data, cb)` — overwrites the `i`th block with `data`, which must be exactly 512 bytes long. Callback is given `(error)`, which will be `null` if the write was successful.
 
 **TBD**: expose atomic `.modifyBlock` helper?
 

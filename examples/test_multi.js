@@ -9,7 +9,7 @@ var tessel = require('tessel');
 var sdcard = require('../').use(tessel.port['A'], function (e) {
     if (e) throw e;
     
-    sdcard.readBlocks(0, 1042, function (e,n,d) {
+    sdcard.readBlocks(0, Buffer(1042), function (e,n,d) {
         if (e) throw e;
         else console.log("Blocks contain:", d.slice(0,64), d.slice(512,576));
     });

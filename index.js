@@ -445,9 +445,7 @@ exports.use = function (port, cb) {
     }, _nested); }
     
     function readBlocks(i, dest, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
-        if (typeof dest === 'number') dest = new Buffer(dest);
-        
-        var n = (dest.length / BLOCK_SIZE) >>> 0,
+        var n = Math.ceil(dest.length / BLOCK_SIZE),
             addr = (cardType === 'SDv2+block') ? i : i * BLOCK_SIZE;
         log(log.DBG, "Reading",n,"blocks into destination of length",dest.length);
         sendCommand('READ_MULTIPLE_BLOCK', addr, function (e,d) {
@@ -460,7 +458,7 @@ exports.use = function (port, cb) {
                 });
                 else sendCommand('STOP_TRANSMISSION', function () {
                     // NOTE: already have data, so ignoring any error…
-                    cb(null, n*BLOCK_SIZE, dest);
+                    cb(null, dest.length, dest);
                 }, true);
             }
         }, true);
