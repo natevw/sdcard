@@ -32,8 +32,10 @@ var CMD = {
     GO_IDLE_STATE: {index:0, format:'r1'},
     SEND_IF_COND: {index:8, format:'r7'},
     READ_OCR: {index:58, format:'r3'},
+    STOP_TRANSMISSION: {index:12, format:'r1b'},
     SET_BLOCKLEN: {index:16, format:'r1'},
     READ_SINGLE_BLOCK: {index:17, format:'r1'},
+    READ_MULTIPLE_BLOCK: {index:18, format:'r1'},
     WRITE_BLOCK: {index:24, format:'r1'},
     CRC_ON_OFF: {index:59, format:'r1'},
     
@@ -41,7 +43,7 @@ var CMD = {
     APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
 };
 
-var RESP_LEN = {r1:1, r3:5, r7:5};
+var RESP_LEN = {r1:1, r1b:1, r3:5, r7:5};
 
 var R1_FLAGS = {
     IDLE_STATE: 0x01,
@@ -300,6 +302,10 @@ exports.use = function (port, cb) {
             spi_transfer(cmdBuffer, function (e,d) {
                 log(log.DBG, "TRANSFER RESULT", d);
                 if (e) cb(e);
+                // NOTE: can't find in spec, but supposedly need to ignore a byte after CMD12…
+                else if (cmd === 'STOP_TRANSMISSION') spi_receive(1, function () {
+                    waitForResponse(8);
+                });
                 else waitForResponse(8);
                 function waitForResponse(tries) {
                     if (!tries) cb(new Error("Timed out waiting for reponse."));
@@ -313,12 +319,10 @@ exports.use = function (port, cb) {
                 function finish(r1) {
                     var additionalBytes = RESP_LEN[command.format]-1;
                     if (r1 & R1_FLAGS._ANY_ERROR_) cb(new Error("Error flag(s) set: "+_parseR1(r1)), r1);
-                    else if (additionalBytes) spi_receive(additionalBytes, function (e, d) {
-                        cb(e, r1, d);
-                    });
+                    else if (command.format === 'r1b') waitForIdle(100, function (e) { cb(e, r1); });
+                    else if (additionalBytes) spi_receive(additionalBytes, function (e, d) { cb(e, r1, d); });
                     else cb(null, r1);
                 }
-                
             });
         }
     }, _nested); }
@@ -415,26 +419,49 @@ exports.use = function (port, cb) {
         });
     }
     
+    function waitForData(tries, cb) {
+        if (!tries) cb(new Error("Timed out waiting for data response."));
+        else spi_receive(1, function (e,d) {
+            log(log.DBG, "While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
+            if (~d[0] & 0x80) cb(new Error("Card read error: "+d[0]));
+            else if (d[0] !== 0xFE) waitForData(tries-1, cb);
+            else spi_receive(BLOCK_SIZE+2, function (e,d) {
+                /*var crc0 = d.readUInt16BE(d.length-2),
+                    crc1 = reduceBuffer(d, 0, d.length-2, crcAdd16, 0),
+                    crcError = (crc0 !== crc1);*/
+                var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
+                if (crcError) cb(new Error("Checksum error on data transfer!"));
+                else cb(null, d.slice(0,d.length-2), i);       // WORKAROUND: https://github.com/tessel/beta/issues/339
+            });
+        });
+    }
+    
     function readBlock(i, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         var addr = (cardType === 'SDv2+block') ? i : i * BLOCK_SIZE;
         sendCommand('READ_SINGLE_BLOCK', addr, function (e,d) {
             if (e) cb(e);
-            else waitForData(0);
-            function waitForData(tries) {
-                if (tries > 100) cb(new Error("Timed out waiting for data response."));
-                else spi_receive(1, function (e,d) {
-                    log(log.DBG, "While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
-                    if (~d[0] & 0x80) cb(new Error("Card read error: "+d[0]));
-                    else if (d[0] !== 0xFE) waitForData(tries+1);
-                    else spi_receive(BLOCK_SIZE+2, function (e,d) {
-                        /*var crc0 = d.readUInt16BE(d.length-2),
-                            crc1 = reduceBuffer(d, 0, d.length-2, crcAdd16, 0),
-                            crcError = (crc0 !== crc1);*/
-                        var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
-                        if (crcError) cb(new Error("Checksum error on data transfer!"));
-                        else cb(null, d.slice(0,d.length-2), i);       // WORKAROUND: https://github.com/tessel/beta/issues/339
-                    });
+            else waitForData(100, cb);
+        }, true);
+    }, _nested); }
+    
+    function readBlocks(i, dest, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+        if (typeof dest === 'number') dest = new Buffer(dest);
+        
+        var n = (dest.length / BLOCK_SIZE) >>> 0,
+            addr = (cardType === 'SDv2+block') ? i : i * BLOCK_SIZE;
+        log(log.DBG, "Reading",n,"blocks into destination of length",dest.length);
+        sendCommand('READ_MULTIPLE_BLOCK', addr, function (e,d) {
+            if (e) cb(e);
+            else readAllData(0);
+            function readAllData(j) {
+                if (j < n) waitForData(100, function (e,d) {
+                    if (e) cb(e);
+                    else d.copy(dest, j*BLOCK_SIZE), readAllData(j+1);
                 });
+                else sendCommand('STOP_TRANSMISSION', function () {
+                    // NOTE: already have data, so ignoring any error…
+                    cb(null, n*BLOCK_SIZE, dest);
+                }, true);
             }
         }, true);
     }, _nested); }
@@ -487,13 +514,19 @@ exports.use = function (port, cb) {
         if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
         return readBlock(i,cb);
     };
+    card.readBlocks = function (i, dest, cb) {
+        if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
+        return readBlocks(i,dest,cb);
+    };
+    
+    
     card.writeBlock = function (i, data, cb) {
         if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
         return writeBlock(i,data,cb);
     };
     card._modifyBlock = modifyBlock;
     
-    // TODO: readBlocks/writeBlocks/erase (i.e. bulk/multi support)
+    // TODO: writeBlocks/erase (i.e. bulk/multi support)
     
     return card;
 };
