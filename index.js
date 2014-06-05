@@ -15,7 +15,7 @@ var events = require('events'),
 
 var _dbgLevel = 0;//-5;
 function log(level) {
-    if (level >= _dbgLevel) console.log.apply(console, Array.prototype.slice.call(arguments, 1));
+    if (level >= _dbgLevel) arguments[0] = Date.now(), console.log.apply(console, arguments);//Array.prototype.slice.call(arguments, 1));
 }
 log.DBG = -4;
 log.INFO = -3;
