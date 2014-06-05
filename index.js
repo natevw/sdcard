@@ -203,7 +203,8 @@ exports.use = function (port, cb) {
     
     // WORKAROUND: https://github.com/tessel/beta/issues/336
     // (and now to handle https://github.com/tessel/firmware/issues/109 too)
-    var lockedSPI = null;
+    var lockedSPI = null,
+        spiIdle = false;
     function spi_transfer(d, cb) {
         if (lockedSPI) lockedSPI.rawTransfer(d, cb);
         else spi.transfer(d, cb);
@@ -254,6 +255,7 @@ exports.use = function (port, cb) {
             preRelease: function (finish) {
                 csn.output(true);
                 spi_receive(1, function () {
+                    spiIdle = true;
                     log(log.DBG, "----- RELEASING SPI QUEUE -----", '#'+dbgTN);
                     lockedSPI.release(function () {
                         lockedSPI = null;
@@ -277,20 +279,26 @@ exports.use = function (port, cb) {
         if (command.app_cmd) {
             _sendCommand(CMD.APP_CMD.index, 0, function (e) {
                 if (e) cb(e);
-                else {
-                    // cycling CSN here between the two commands prevents mis-aligned response to the second
-                    // NOTE: http://www.lpcware.com/content/forum/sd-card-interfacing pessimistic re. alignment
-                    //       but I've only ever seen misalignment when forgetting to handle CSN+settle properly
-                    csn.output(true);       // start a new 
-                    spi_receive(1, function () {
-                        csn.output(false);
-                        _sendCommand(command.index, arg, cb);
-                    });
-                }
+                else _sendCommand(command.index, arg, cb);
             });
         } else _sendCommand(command.index, arg, cb);
         
         function _sendCommand(idx, arg, cb) {
+            // cycling CSN here before every new command prevents receiving a mis-aligned response back
+            // NOTE: http://www.lpcware.com/content/forum/sd-card-interfacing pessimistic re. alignment,
+            //       but I've only ever seen misalignment when forgetting to handle this resync properly!
+            if (!spiIdle) {
+                log(log.DBG, "Re-syncronizing SPI bus before new command");
+                csn.output(true);
+                spi_receive(1, function () {
+                    csn.output(false);
+                    __sendCommand(idx, arg, cb);
+                });
+            } else __sendCommand(idx, arg, cb);
+            spiIdle = false;
+        }
+        
+        function __sendCommand(idx, arg, cb) {
             log(log.DBG, '_sendCommand', idx, '0x'+arg.toString(16));
             var cmdBuffer = new Buffer(6);
             cmdBuffer[0] = 0x40 | idx;
