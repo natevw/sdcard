@@ -223,7 +223,7 @@ exports.use = function (port, cb) {
     
     function configureSPI(speed, cb) {           // 'pulse', 'init', 'fullspeed'
         spi = new port.SPI({
-            clockSpeed: (speed === 'fast') ? 20*1000*1000 : 200*1000
+            clockSpeed: (speed === 'fast') ? 2*1000*1000 : 200*1000
         });
         //spi.on('ready', cb);
         process.nextTick(cb);
