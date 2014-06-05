@@ -173,20 +173,21 @@ exports.use = function (port, cb) {
                 var vol = {
                     sectorSize: info.sectorSize,
                     numSectors: p.numSectors,
-                    readSector: function (i, cb) {
+                    readSectors: function (i, dest, _cb) {
+                        function cb(e,d) { if (!e) d.copy(dest); _cb(e); }
                         if (i > p.numSectors) throw Error("Invalid sector request!");
                         if (cache.i === i) process.nextTick(cb.bind(null, null, cache.d));
-                        else card.readBlock(p.firstSector+i, function (e,d) {
+                        else card.readBlocks(p.firstSector+i, dest, function (e,n,d) {
                             if (e) return cb(e);
                             cache.i = i;
                             cache.d = d;
                             cb(null, d);
                         });
                     },
-                    writeSector: function (i, data, cb) {
+                    writeSectors: function (i, data, cb) {
                         if (i > p.numSectors) throw Error("Invalid sector request!");
                         if (cache.i === i) cache.i = cache.d = null;
-                        card.writeBlock(p.firstSector+i, data, cb);
+                        card.writeBlocks(p.firstSector+i, data, cb);
                     }
                 }, cache = {};
                 if (opts.volumesOnly) q.defer(function (cb) { cb(null, vol); });
@@ -222,7 +223,7 @@ exports.use = function (port, cb) {
     
     function configureSPI(speed, cb) {           // 'pulse', 'init', 'fullspeed'
         spi = new port.SPI({
-            clockSpeed: (speed === 'fast') ? 2*1000*1000 : 200*1000
+            clockSpeed: (speed === 'fast') ? 20*1000*1000 : 200*1000
         });
         //spi.on('ready', cb);
         process.nextTick(cb);

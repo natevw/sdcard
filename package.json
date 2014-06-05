@@ -24,7 +24,7 @@
   "homepage": "https://github.com/natevw/tessel-sdcard",
   "dependencies": {
     "fifolock": "^1.0.0",
-    "fatfs": "^0.7.1",
+    "fatfs": "^0.9.5",
     "parsetition": "^0.1.0",
     "queue-async": "^1.0.7"
   }
