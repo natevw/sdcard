@@ -57,7 +57,9 @@ var sdcard = require('../').use(tessel.port['A'], function (e) {
 
 * `sdcard.readBlocks(i, buffer, cb)` — starting at the `i`th block, reads multiple blocks into `buffer` and calls `cb(err, bytesRead, buffer)` when done. For large contiguous reads, this can be more efficient than multiple `sdcard.readBlock` calls.  The destination buffer's length need not be an integer multiple of `sdcard.BLOCK_SIZE`; any extra data from the final block will simply be discarded. [Right now, `bytesRead` will always equal `buffer.length` and you are responsible for not reading off the end of the card. This may change in the future to do a partial read instead.]
 
-* `sdcard.writeBlock(i, data, cb)` — overwrites the `i`th block with `data`, which must be exactly 512 bytes long. Callback is given `(error)`, which will be `null` if the write was successful.
+* `sdcard.writeBlock(i, data, cb)` — overwrites the `i`th block with `data`, which must be exactly 512 bytes long. Callback is given `(error)`, which will be `null` if the write was successful. Note that at the card level, a single block write usually requires a full read/erase/rewrite operation against an entire page of blocks — see `sdcard.writeBlocks` if you are writing several contiguous blocks of data.
+
+* `sdcard.writeBlocks(i, data, cb)` — starting at the `i`th block, first erases and then overwrites multiple blocks with the contents of `buffer`, calling `cb(err)` when done. The length of `data` **must** be an integer multiple of `sdcard.BLOCK_SIZE`. This call is *significantly* more efficient than `sdcard.writeBlock` for any size contiguous writes. 
 
 **TBD**: expose atomic `.modifyBlock` helper?
 

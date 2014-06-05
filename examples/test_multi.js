@@ -14,11 +14,11 @@ var sdcard = require('../').use(tessel.port['A'], function (e) {
         else console.log("Blocks contain:", d.slice(0,64), d.slice(512,576));
     });
     
-//    var zeroes = new Buffer(sdcard.BLOCK_SIZE);
-//    zeroes.fill(0);
-//    if (OKAY_TO_WRITE_CARD) sdcard.writeBlock(1, zeroes, function (e,d) {
-//        if (e) console.error("Write failed!", e);
-//        else console.log("Zeroed out the second sector…");
-//    });
-//    else console.warn("Skipped write; set OKAY_TO_WRITE_CARD to `true` if you'd like.");
+    var zeroes = new Buffer(sdcard.BLOCK_SIZE);
+    zeroes.fill(0);
+    if (OKAY_TO_WRITE_CARD) sdcard.writeBlocks(1, zeroes, function (e,d) {
+        if (e) console.error("Write failed!", e);
+        else console.log("Zeroed out the second sector…");
+    });
+    else console.warn("Skipped write; set OKAY_TO_WRITE_CARD to `true` if you'd like.");
 });

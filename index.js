@@ -37,9 +37,11 @@ var CMD = {
     READ_SINGLE_BLOCK: {index:17, format:'r1'},
     READ_MULTIPLE_BLOCK: {index:18, format:'r1'},
     WRITE_BLOCK: {index:24, format:'r1'},
+    WRITE_MULTIPLE_BLOCK: {index:25, format:'r1'},
     CRC_ON_OFF: {index:59, format:'r1'},
     
     APP_CMD: {index:55, format:'r1'},
+    SET_WR_BLOCK_ERASE_COUNT: {app_cmd:true, index:23, format:'r1'},
     APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
 };
 
@@ -428,6 +430,7 @@ exports.use = function (port, cb) {
     }
     
     function waitForData(tries, cb) {
+        log(log.DBG, "Waiting for data packet from card.");
         if (!tries) cb(new Error("Timed out waiting for data response."));
         else spi_receive(1, function (e,d) {
             log(log.DBG, "While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
@@ -472,32 +475,60 @@ exports.use = function (port, cb) {
         }, true);
     }, _nested); }
     
-    var _WRITE0_TOK = Buffer([0xFF, 0xFE]);         // NOTE: stuff byte prepended, for card's timing needs
+    
+    function sendData(tok, data, cb) {
+        log(log.DBG, "Sending data packet to card.");
+        spi_send(new Buffer([0xFF, tok]), function () {         // NOTE: stuff byte prepended, for card's timing needs
+            spi_send(data, function () {
+                var crc = Buffer(2);
+                crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
+                spi_send(crc, function () {
+                    // TODO: why do things lock up here if `spi_receive(>8 bytes, …)` (?!)
+                    // NOTE: above comment was https://github.com/tessel/beta/issues/359
+                    spi_receive(1+1, function (e,d) {    // data response + timing byte
+                        log(log.DBG, "Data response was:", d);
+                        
+                        var dr = d[0] & 0x1f;
+                        if (dr !== 0x05) cb(new Error("Data rejected: "+d[0].toString(16)));
+                        // TODO: proper timeout values (here and elsewhere; based on CSR?)
+                        else waitForIdle(100, cb);     // TODO: we could actually release SPI to *other* users while waiting
+                    });
+                });
+            });
+        });
+    }
+    
     function writeBlock(i, data, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         if (data.length !== BLOCK_SIZE) throw Error("Must write exactly "+BLOCK_SIZE+" bytes.");
         var addr = (cardType === 'SDv2+block') ? i : i * BLOCK_SIZE;
         sendCommand('WRITE_BLOCK', addr, function (e) {
             if (e) cb(e);
-            else spi_send(_WRITE0_TOK, function () {         
-                spi_send(data, function () {
-                    var crc = Buffer(2);
-                    crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
-                    spi_send(crc, function () {
-                        // TODO: why do things lock up here if `spi_receive(>8 bytes, …)` (?!)
-                        // NOTE: above comment was https://github.com/tessel/beta/issues/359
-                        spi_receive(1+1, function (e,d) {    // data response + timing byte
-                            log(log.DBG, "Data response was:", d);
-                            
-                            var dr = d[0] & 0x1f;
-                            if (dr !== 0x05) cb(new Error("Data rejected: "+d[0].toString(16)));
-                            // TODO: proper timeout values (here and elsewhere; based on CSR?)
-                            else waitForIdle(100, cb);     // TODO: we could actually release SPI to *other* users while waiting
-                        });
-                    });
-                });
-            });
+            else sendData(0xFE, data,cb);
         }, true);
     }, _nested); }
+    
+    function writeBlocks(i, data, cb, _nested) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
+        if (data.length % BLOCK_SIZE) throw Error("Must write a multiple of "+BLOCK_SIZE+" bytes.");
+        var n = data.length / BLOCK_SIZE,
+            addr = (cardType === 'SDv2+block') ? i : i * BLOCK_SIZE;
+        
+        sendCommand('SET_WR_BLOCK_ERASE_COUNT', n, function (e) {
+            if (e) cb(e);
+            else sendCommand('WRITE_MULTIPLE_BLOCK', addr, function (e) {
+                if (e) cb(e);
+                else sendAllData(0);
+                function sendAllData(j) {
+                    if (j < n) sendData(0xFC, data.slice(j*BLOCK_SIZE, (j+1)*BLOCK_SIZE), function (e) {
+                        if (e) cb(e);
+                        else sendAllData(j+1);
+                    });
+                    else log(log.DBG, "Sending end-of-transfer token to card."),
+                        spi_send(new Buffer([0xFF, 0xFD, 0xFF]), waitForIdle.bind(null, 100, cb));
+                }
+            }, true);
+        }, true);
+    }, _nested); }
+    
     
     function modifyBlock(i,fn,cb) { cb = SPI_TRANSACTION_WRAPPER(cb, function () {
         readBlock(i, function (e, d) {
@@ -525,14 +556,16 @@ exports.use = function (port, cb) {
         return readBlocks(i,dest,cb);
     };
     
-    
     card.writeBlock = function (i, data, cb) {
         if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
         return writeBlock(i,data,cb);
     };
-    card._modifyBlock = modifyBlock;
+    card.writeBlocks = function (i, data, cb) {
+        if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
+        return writeBlocks(i,data,cb);
+    }
     
-    // TODO: writeBlocks/erase (i.e. bulk/multi support)
+    card._modifyBlock = modifyBlock;
     
     return card;
 };
