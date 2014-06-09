@@ -112,7 +112,8 @@ exports.use = function (port, cb) {
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
         csn = port.pin['G1'],
-        ppn = port.pin['G2'];      // "physically present (negated)"
+        ppn = port.pin['G2'],      // "physically present (negated)"
+        CRC = false;
     
     csn.output();
     ppn.input();
@@ -307,7 +308,9 @@ exports.use = function (port, cb) {
             cmdBuffer[0] = 0x40 | idx;
             cmdBuffer.writeUInt32BE(arg, 1);
             //cmdBuffer[5] = Array.prototype.reduce.call(cmdBuffer.slice(0,5), crcAdd, 0) << 1 | 0x01;
-            cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;        // crc
+            if (CRC) cmdBuffer[5] = reduceBuffer(cmdBuffer, 0, 5, crcAdd, 0) << 1 | 0x01;
+            else if (idx === 0 && arg === 0x0000) cmdBuffer[5] = 0x95;      // these two need CRCs
+            else if (idx === 8 && arg === 0x01AA) cmdBuffer[5] = 0x87;      // …but they're known!
             cmdBuffer.fill(0xFF, 6);
             log(log.DBG, "* sending data:", cmdBuffer);
             spi_transfer(cmdBuffer, function (e,d) {
@@ -387,9 +390,13 @@ exports.use = function (port, cb) {
                         if (e) cb(e);
                         else waitForReady(0, function (e) {
                             if (e) cb(e);
-                            else sendCommand('CRC_ON_OFF', 0x01, function (e) {
+                            else if (CRC) sendCommand('CRC_ON_OFF', 0x01, function (e) {
                                 if (e) cb(new Error("Couldn't re-enable bus checksumming."));
-                                else if (cardType) fullSteamAhead();
+                                else homestrech();
+                            });
+                            else homestrech();
+                            function homestrech() {
+                                if (cardType) fullSteamAhead();
                                 else sendCommand('READ_OCR', function (e,d,b) {
                                     if (e) cb(new Error("Unexpected error reading card size!"));
                                     cardType = (b[0] & 0x40) ? 'SDv2+block' : 'SDv2';
@@ -407,7 +414,7 @@ exports.use = function (port, cb) {
                                             // ARROW'ED!
                                     });
                                 }
-                            });
+                            }
                         });
                     });
                 });
@@ -438,10 +445,7 @@ exports.use = function (port, cb) {
             if (~d[0] & 0x80) cb(new Error("Card read error: "+d[0]));
             else if (d[0] !== 0xFE) waitForData(tries-1, cb);
             else spi_receive(BLOCK_SIZE+2, function (e,d) {
-                /*var crc0 = d.readUInt16BE(d.length-2),
-                    crc1 = reduceBuffer(d, 0, d.length-2, crcAdd16, 0),
-                    crcError = (crc0 !== crc1);*/
-                var crcError = reduceBuffer(d, 0, d.length, crcAdd16, 0);
+                var crcError = CRC && reduceBuffer(d, 0, d.length, crcAdd16, 0);
                 if (crcError) cb(new Error("Checksum error on data transfer!"));
                 else cb(null, d.slice(0,d.length-2), i);       // WORKAROUND: https://github.com/tessel/beta/issues/339
             });
@@ -481,8 +485,8 @@ exports.use = function (port, cb) {
         log(log.DBG, "Sending data packet to card.");
         spi_send(new Buffer([0xFF, tok]), function () {         // NOTE: stuff byte prepended, for card's timing needs
             spi_send(data, function () {
-                var crc = Buffer(2);
-                crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
+                var crc = Buffer([0xFF, 0xFF]);
+                if (CRC) crc.writeUInt16BE(reduceBuffer(data, 0, data.length, crcAdd16, 0), 0);
                 spi_send(crc, function () {
                     // TODO: why do things lock up here if `spi_receive(>8 bytes, …)` (?!)
                     // NOTE: above comment was https://github.com/tessel/beta/issues/359
