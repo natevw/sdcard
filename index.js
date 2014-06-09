@@ -13,9 +13,12 @@ var events = require('events'),
     fatfs = require('fatfs'),
     queue = require('queue-async');
 
-var _dbgLevel = 0;//-5;
+var _dbgLevel = 0,//-5;
+    _prevDbg = Date.now();
 function log(level) {
-    if (level >= _dbgLevel) arguments[0] = Date.now(), console.log.apply(console, arguments);//Array.prototype.slice.call(arguments, 1));
+    var now = Date.now(), diff = now - _prevDbg;
+    _prevDbg = now;
+    if (level >= _dbgLevel) arguments[0] = ((diff > 75) ? diff.toFixed(0) : "  <75ms"), console.log.apply(console, arguments);//Array.prototype.slice.call(arguments, 1));
 }
 log.DBG = -4;
 log.INFO = -3;
