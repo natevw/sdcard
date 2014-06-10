@@ -16,7 +16,7 @@ card.on('ready', function () {
     card.getFilesystems({volumesOnly:true}, function (e,arr) {
         if (e) throw e;
         else if (!arr.length) throw Error("No filesystems found!");
-        else _fat.startTests(arr[0], 600e3);
+        //else _fat.startTests(arr[0], 600e3);
     });
     
     // attempt to throw a wrench; shouldn't affect SD communications though!

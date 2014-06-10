@@ -48,7 +48,7 @@ var sdcard = require('../').use(tessel.port['A'], function (e) {
 
 * `sdcard.restart()` — The card driver will normally only fire the `'ready'` (or `'error'`) event once, after the first time a card is inserted and successfully (or unsuccessfully) initialized. If you wish to receive once of those events again, call `.restart()` on either the `'removed'` or `'inserted'` events and the driver will attempt to re-initialize the SD Card.
 
-* `sdcard.getFilesystems(cb)` — Returns `(e, array)` with the usuable filesystems found on the card, ready to use. These filesystems will expose an API similar to the [node.js 'fs' module](http://nodejs.org/api/fs.html). Currently this only supports basic FAT partitions [hosted within](https://github.com/natevw/parsetition) a MBR partition table, and the [fatfs driver]((https://github.com/natevw/fatfs) is missing some functionality and **lots** of test cases. Please tread with caution and [report any issues]((https://github.com/natevw/fatfs/issues) you may encounter!
+* `sdcard.getFilesystems(cb)` — Returns `(e, array)` with the usuable filesystems found on the card, ready to use. These filesystems will expose an API similar to the [node.js 'fs' module](http://nodejs.org/api/fs.html). Currently this only supports basic FAT partitions [hosted within](https://github.com/natevw/parsetition) a MBR partition table, and the [fatfs driver](https://github.com/natevw/fatfs) is missing some functionality and **lots** of test cases. Please tread with caution and [report any issues](https://github.com/natevw/fatfs/issues) you may encounter!
 
 ## Options to `sdcard.use`
 
