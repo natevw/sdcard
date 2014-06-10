@@ -1,3 +1,6 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 /*********************************************
 This MicroSD card example writes a text file
 to the sd card, then reads the file to the
@@ -7,9 +10,9 @@ console.
 var _start = Date.now();
 
 var tessel = require('tessel'),
-    sdcard = require('../');
+    sdcardlib = require('../'); // Replace '../' with 'sdcard' in your own code
 
-sdcard.use(tessel.port['A'], {getFilesystems:true}, function(e, fss) {
+sdcardlib.use(tessel.port['A'], {getFilesystems:true}, function(e, fss) {
     if (e) throw e;
     
     var fs = fss[0],

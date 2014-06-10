@@ -1,3 +1,6 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 /*********************************************
 Shows a bit more advanced reading and writing.
 *********************************************/
@@ -5,7 +8,9 @@ Shows a bit more advanced reading and writing.
 var OKAY_TO_WRITE_CARD = false;
 
 var tessel = require('tessel');
-var sdcard = require('../').use(tessel.port['A']);
+var sdcardlib = require('../'); // Replace '../' with 'sdcard' in your own code
+
+var sdcard = sdcardlib.use(tessel.port['A']);
 
 var cardReady = false;
 sdcard.on('error', function (e) {
