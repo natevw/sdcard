@@ -11,7 +11,8 @@ var events = require('events'),
     fifolock = require('fifolock'),
     parsetition = require('parsetition'),
     fatfs = require('fatfs'),
-    queue = require('queue-async');
+    queue = require('queue-async'),
+    extend = require('xok');
 
 var _dbgLevel = 0,//-5;
     _prevDbg = Date.now();
@@ -111,7 +112,17 @@ function reduceBuffer(buf, start, end, fn, res) {
 }
 
 
-exports.use = function (port, cb) {
+exports.use = function (port, opts, cb) {
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = null;
+    }
+    opts = extend({
+        getFilesystems: false,
+        waitForCard: true,
+        watchCard: false
+    }, opts);
+    
     var card = new events.EventEmitter(),
         spi = null,         // re-initialized to various settings until card is ready
         csn = port.pin['G1'],
@@ -126,36 +137,39 @@ exports.use = function (port, cb) {
     var ready, waiting;
     card.restart = function () {
         ready = false;
-        waiting = true;
-        updateCardStatus();
+        
+        var present = card.isPresent();
+        if (present) emitWhenReady();
+        else if (opts.waitForCard) ppn.once('fall', setTimeout.bind(null, emitWhenReady, 1));     // spec requires 1ms after powerup before init sequence
+        else process.nextTick(function () {
+            emit('error', new Error("No SD card is physically present."));
+        });
     };
     
-    var cardPresent;
-    function updateCardStatus() {
-        var newCardPresent = !ppn.read();
-        log(log.DBG, "updateCardStatus", newCardPresent, cardPresent);
-        if (newCardPresent === cardPresent) return;
-        else cardPresent = newCardPresent;
-        
-        var event = (cardPresent) ? 'inserted' : 'removed';
+    var emitWhenReady = getCardReady.bind(null, function (e) {
+        if (e) card.emit('error', e);
+        else {
+            ready = true;
+            if (opts.getFilesystems) card.getFilesystems(function (e,d) {
+                if (e) card.emit('error', e);
+                else card.emit('ready', d);
+            
+            });
+            else card.emit('ready');
+        }
+    });
+    
+    if (opts.watchCard) ppn.on('change', function () {
+        var cardPresent = card.isPresent(),
+            event = (cardPresent) ? 'inserted' : 'removed';
         log(log.INFO, "Card status:", event);
         card.emit(event);
-        
-        if (cardPresent && waiting) {
-            waiting = false;            // caller must call `.restart()` to opt-in to another 'ready' event
-            setTimeout(getCardReady.bind(null, function (e,d) {
-                if (e) card.emit('error', e);
-                else {
-                    ready = true;
-                    card.emit('ready');
-                }
-            }), 1);      // spec requires 1ms after powerup before init sequence
-        }
-    }
+    });
+    
     card.isPresent = function () {
-        return cardPresent;
+        return !ppn.read();
     };
-    ppn.on('change', updateCardStatus);
+    
     
     card.getFilesystems = function (opts, cb) {
         if (typeof opts === 'function') {

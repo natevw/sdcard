@@ -38,17 +38,25 @@ var sdcard = require('../').use(tessel.port['A'], function (e) {
 
 ## API Reference
 
-* `var sdcard = require('sdcard').use(port, [cb])` — Initialize the card driver with the given Tessel port. You may provide an optional callback taking `(err)` which will be registered for the `ready` and `error` (if error parameter not `null`) events.
+* `var sdcard = require('sdcard').use(port, [opts], [cb])` — Initialize the card driver with the given Tessel port. You may provide an optional callback taking `(err)` which will be registered for the `ready` and `error` (if error parameter not `null`) events. Valid flags for the `opts` argument (which is not required either) are documented below.
 * `sdcard.isPresent()` — returns `true` if there is something physically in the slot, `false` if not. Can be called regardless of whether the card is ready or not, unlike the read/write calls below.
 
-* `'ready'` event — fired when the card interface has been initialized and is ready to use.
-* `'error'` event — fired if the card interface could not become ready.
-* `'inserted'` event — fired when the card has been physically inserted (communications probably not initialized yet!)
-* `'removed'` event — fired when the card has been physically removed
+* `'ready'` event — fired when the card interface has been initialized and is ready to use. If the `getFilesystems` *option* was set, this event will wait to fire until with a filesystem list (like that from the `sdcard.getFilesystems` *method*) can be provided as its argument.
+* `'error'` event — fired if the card interface (or any filesystems, if requested) could not become ready.
+* `'inserted'` event — if the `watchCard` option is set, this event will be fired when the card has been physically inserted (communications probably not initialized yet!)
+* `'removed'` event — if the `watchCard` option is set, this event will be fired when the card has been physically removed
 
 * `sdcard.restart()` — The card driver will normally only fire the `'ready'` (or `'error'`) event once, after the first time a card is inserted and successfully (or unsuccessfully) initialized. If you wish to receive once of those events again, call `.restart()` on either the `'removed'` or `'inserted'` events and the driver will attempt to re-initialize the SD Card.
 
 * `sdcard.getFilesystems(cb)` — Returns `(e, array)` with the usuable filesystems found on the card, ready to use. These filesystems will expose an API similar to the [node.js 'fs' module](http://nodejs.org/api/fs.html). Currently this only supports basic FAT partitions [hosted within](https://github.com/natevw/parsetition) a MBR partition table, and the [fatfs driver]((https://github.com/natevw/fatfs) is missing some functionality and **lots** of test cases. Please tread with caution and [report any issues]((https://github.com/natevw/fatfs/issues) you may encounter!
+
+## Options to `sdcard.use`
+
+These flags can be provided via an `opts` object to `sdcard.use`:
+
+* `getFilesystems` — If set to `true`, the `'ready'` event will be delayed until filesystems have been fetched. (See event documentation for details.) Defaults to `false`.
+* `waitForCard` — When `true` (the default), the library will wait for a card to be physically inserted before proceeding with initialization. If set to `false`, then an error will be emitted if a card is not immediately detected via the sense pin.
+* `watchCard` — If set to `true`, your script will never finish but the instance will emit the `'inserted'` and `'removed'` events as documented above. Defaults to `false`.
 
 
 ## Low level (raw) API

@@ -7,7 +7,7 @@ function h(n, pad) {
     return (pad+1+n).toString(16).slice(1);
 }
 
-var card = sdcard.use(tessel.port['A']);
+var card = sdcard.use(tessel.port['A'], {watchCard:true});
 
 console.log("Card", (card.isPresent()) ? "present" : "absent", "at startup.");
 card.on('ready', function () {

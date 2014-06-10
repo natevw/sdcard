@@ -6,21 +6,21 @@ console.
 
 var _start = Date.now();
 
-var tessel = require('tessel');
-var sdcard = require('../').use(tessel.port['A']);
+var tessel = require('tessel'),
+    sdcard = require('../');
 
-sdcard.on('ready', function() {
-  sdcard.getFilesystems(function(err, fss) {
+sdcard.use(tessel.port['A'], {getFilesystems:true}, function(e, fss) {
+    if (e) throw e;
+    
     var fs = fss[0],
         start = Date.now();
     console.log("_time_", start - _start);
     console.log('Writing...');
     fs.writeFile('someFile.txt', 'Hey Tessel SDCard!', function(err) {
-      console.log('Write complete. Reading...');
-      fs.readFile('someFile.txt', function(err, data) {
-        console.log('Read:\n', data.toString());
-        console.log(":TIME:", Date.now()-start);
-      });
+        console.log('Write complete. Reading...');
+        fs.readFile('someFile.txt', function(err, data) {
+            console.log('Read:\n', data.toString());
+            console.log(":TIME:", Date.now()-start);
+        });
     });
-  });
 });

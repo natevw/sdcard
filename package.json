@@ -1,6 +1,6 @@
 {
   "name": "sdcard",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Tessel SD module driver",
   "main": "index.js",
   "scripts": {
@@ -26,6 +26,7 @@
     "fifolock": "^1.0.0",
     "fatfs": "^0.9.5",
     "parsetition": "^0.1.0",
-    "queue-async": "^1.0.7"
+    "queue-async": "^1.0.7",
+    "xok": "^1.0.0"
   }
 }
