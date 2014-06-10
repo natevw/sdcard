@@ -19,7 +19,9 @@ console.
 *********************************************/
 
 var tessel = require('tessel');
-var sdcard = require('../').use(tessel.port['A']);
+var sdcardlib = require('sdcard');
+
+var sdcard = sdcardlib.use(tessel.port['A']);
 
 sdcard.on('ready', function() {
   sdcard.getFilesystems(function(err, fss) {
