@@ -61,7 +61,7 @@ Fired if the card interface (or any filesystems, if requested) could not become 
 If the watchCard option is set, this event will be fired when the card has been physically inserted (communications probably not initialized yet!)  
 
 &#x20;<a href="#api-sdcard-on-removed-If-the-watchCard-option-is-set-this-event-will-be-fired-when-the-card-has-been-physically-removed" name="api-sdcard-on-removed-If-the-watchCard-option-is-set-this-event-will-be-fired-when-the-card-has-been-physically-removed">#</a> sdcard<b>.on</b>( 'removed' )  
- If the watchCard option is set, this event will be fired when the card has been physically removed  
+ If the watchCard option is set, this event will be fired when the card has been physically removed.  
 
 ###Options for `sdcard.use`
 These flags can be provided via an `opts` object to `sdcard.use`:
@@ -70,10 +70,10 @@ These flags can be provided via an `opts` object to `sdcard.use`:
 If set to true, the 'ready' event will be delayed until filesystems have been fetched. (See event documentation for details.) Defaults to false.  
 
 &#x20;<a href="#api-sdcard-use-waitForCard-When-true-the-default-the-library-will-wait-for-a-card-to-be-physically-inserted-before-proceeding-with-initialization-If-set-to-false-then-an-error-will-be-emitted-if-a-card-is-not-immediately-detected-via-the-sense-pin" name="api-sdcard-use-waitForCard-When-true-the-default-the-library-will-wait-for-a-card-to-be-physically-inserted-before-proceeding-with-initialization-If-set-to-false-then-an-error-will-be-emitted-if-a-card-is-not-immediately-detected-via-the-sense-pin">#</a> <b>waitForCard</b>  
-When true (the default), the library will wait for a card to be physically inserted before proceeding with initialization. If set to false, then an error will be emitted if a card is not immediately detected via the sense pin.  
+When true (the default), the library will wait for a card to be physically inserted before proceeding with initialization. If set to false, then an error will be emitted if a card is not immediately detected via the sense pin. 
 
-&#x20;<a href="#api-sdcard-use-watchCard-If-set-to-true-your-script-will-never-finish-but-the-instance-will-emit-the-inserted-and-removed-events-as-documented-above-Defaults-to-false" name="api-sdcard-use-watchCard-If-set-to-true-your-script-will-never-finish-but-the-instance-will-emit-the-inserted-and-removed-events-as-documented-above-Defaults-to-false">#</a> <b>watchCard</b> 
- If set to true, your script will never finish but the instance will emit the 'inserted' and 'removed' events as documented above. Defaults to false.  
+&#x20;<a href="#api-sdcard-use-watchCard-If-set-to-true-your-script-will-never-finish-but-the-instance-will-emit-the-inserted-and-removed-events-as-documented-above-Defaults-to-false" name="api-sdcard-use-watchCard-If-set-to-true-your-script-will-never-finish-but-the-instance-will-emit-the-inserted-and-removed-events-as-documented-above-Defaults-to-false">#</a> <b>watchCard</b>  
+If set to true, your script will never finish but the instance will emit the 'inserted' and 'removed' events as documented above. Defaults to false.  
 
 ###Further Examples
 See the examples folder for code.
@@ -103,7 +103,8 @@ Starting at the ith block, first erases and then overwrites multiple blocks with
 
 **TBD**: expose how many blocks the card has available!
 
-&#x20;<a href="#api-sdcard-BLOCK_SIZE-currently-this-will-always-be-512-However-for-more-self-documenting-code-or-for-compatibility-with-potential-not-necessarily-planned-a-future-backwards-incompatible-major-version-of-this-code-you-may-wish-to-use-this-property" name="api-sdcard-BLOCK_SIZE-currently-this-will-always-be-512-However-for-more-self-documenting-code-or-for-compatibility-with-potential-not-necessarily-planned-a-future-backwards-incompatible-major-version-of-this-code-you-may-wish-to-use-this-property">#</a> sdcard.<b>BLOCK_SIZE</b> currently, this will always be 512. However, for more self-documenting code or for compatibility with (potential, not necessarily planned) a future backwards-incompatible major version of this code, you may wish to use this property.  
+&#x20;<a href="#api-sdcard-BLOCK_SIZE-currently-this-will-always-be-512-However-for-more-self-documenting-code-or-for-compatibility-with-potential-not-necessarily-planned-a-future-backwards-incompatible-major-version-of-this-code-you-may-wish-to-use-this-property" name="api-sdcard-BLOCK_SIZE-currently-this-will-always-be-512-However-for-more-self-documenting-code-or-for-compatibility-with-potential-not-necessarily-planned-a-future-backwards-incompatible-major-version-of-this-code-you-may-wish-to-use-this-property">#</a> sdcard.<b>BLOCK_SIZE</b>  
+Currently, this will always be 512. However, for more self-documenting code or for compatibility with (potential, not necessarily planned) a future backwards-incompatible major version of this code, you may wish to use this property.  
 
 Note that all read/write requests are serialized internally. So it is okay to request a block read immediately after starting a write request to the same block; your read will see the data from your write. *However* note that this serialization is on a request-by-request basis and e.g. if you write updated block data in a read callback **you** are responsible for making sure no other conflicting writes have been queued for that particular block in the meantime!
 
