@@ -9,8 +9,6 @@ npm install sdcard
 ```
 
 ###Example
-(Please make sure you have a backup of any important data on your card; the example below can be changed to zero out one of its blocks…)
-
 ```js
 /*********************************************
 This MicroSD card example writes a text file
