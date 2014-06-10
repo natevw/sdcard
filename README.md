@@ -114,5 +114,5 @@ Note that all read/write requests are serialized internally. So it is okay to re
 © 2014 Nathan Vander Wilt.
 Funding for this work was provided by Technical Machine, Inc.
 
-BSD-2-Clause, MIT, or Apache-2.0 at your option.
+BSD-2-Clause or Apache-2.0 at your option.
 
