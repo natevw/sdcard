@@ -1,7 +1,7 @@
 #SD Card
-Driver for the sdcard Tessel SD Card module. The hardware documentation for this module can be found [here](https://github.com/tessel/hardware/blob/master/modules-overview.md#sdcard).
+Driver for the sdcard Tessel SD Card module. The hardware documentation for this module can be found [here](https://github.com/tessel/hardware/blob/master/modules-overview.md#micro-sd-card).
 
-If you run into any issues you can ask for support on the [SD Card Module Forums](http://forums.tessel.io/category/sdcard).
+If you run into any issues you can ask for support on the [SD Card Module Forums](http://forums.tessel.io/category/microsd).
 
 ###Installation
 ```sh
