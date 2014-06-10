@@ -191,23 +191,20 @@ exports.use = function (port, opts, cb) {
                 var vol = {
                     sectorSize: info.sectorSize,
                     numSectors: p.numSectors,
-                    readSectors: function (i, dest, _cb) {
-                        function cb(e,d) { if (!e) d.copy(dest); _cb(e); }
+                    readSectors: function (i, dest, cb) {
                         if (i > p.numSectors) throw Error("Invalid sector request!");
-                        if (cache.i === i) process.nextTick(cb.bind(null, null, cache.d));
-                        else card.readBlocks(p.firstSector+i, dest, function (e,n,d) {
-                            if (e) return cb(e);
-                            cache.i = i;
-                            cache.d = d;
-                            cb(null, d);
+                        if (dest.length === card.BLOCK_SIZE) card.readBlock(p.firstSector+i, function (e,d) {
+                            if (!e) d.copy(dest);
+                            cb(e);
                         });
+                        else card.readBlocks(p.firstSector+i, dest, function (e) { cb(e); });
                     },
                     writeSectors: function (i, data, cb) {
                         if (i > p.numSectors) throw Error("Invalid sector request!");
-                        if (cache.i === i) cache.i = cache.d = null;
-                        card.writeBlocks(p.firstSector+i, data, cb);
+                        if (data.length === card.BLOCK_SIZE) card.writeBlock(p.firstSector+i, data, cb);
+                        else card.writeBlocks(p.firstSector+i, data, cb);
                     }
-                }, cache = {};
+                };
                 if (opts.volumesOnly) q.defer(function (cb) { cb(null, vol); });
                 else if (p.type.indexOf('fat') === 0) q.defer(initFS, vol);       // TODO: less fragile type detection
             });
