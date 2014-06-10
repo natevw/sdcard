@@ -11,7 +11,7 @@ var OKAY_TO_WRITE_CARD = false;
 
 
 var tessel = require('tessel');
-var sdcardlib = require('../'); // Replace '../' with 'sdcard' in your own code
+var sdcardlib = require('../'); // Replace '../' with 'sdcard' in your own code.
 
 var sdcard = sdcardlib.use(tessel.port['A'], function (e) {
     if (e) throw e;

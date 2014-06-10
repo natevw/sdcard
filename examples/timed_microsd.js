@@ -10,11 +10,11 @@ console.
 var _start = Date.now();
 
 var tessel = require('tessel'),
-    sdcardlib = require('../'); // Replace '../' with 'sdcard' in your own code
+    sdcardlib = require('../'); // Replace '../' with 'sdcard' in your own code.
 
 sdcardlib.use(tessel.port['A'], {getFilesystems:true}, function(e, fss) {
     if (e) throw e;
-    
+
     var fs = fss[0],
         start = Date.now();
     console.log("_time_", start - _start);
