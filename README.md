@@ -97,8 +97,6 @@ Overwrites the ith block with data, which must be exactly 512 bytes long. Callba
 &#x20;<a href="#api-sdcard-writeBlocks-i-data-cb-starting-at-the-i-th-block-first-erases-and-then-overwrites-multiple-blocks-with-the-contents-of-buffer-calling-cb-err-when-done-The-length-of-data-must-be-an-integer-multiple-of-sdcard-BLOCK_SIZE-This-call-is-significantly-more-efficient-than-sdcard-writeBlock-for-any-size-contiguous-writes" name="api-sdcard-writeBlocks-i-data-cb-starting-at-the-i-th-block-first-erases-and-then-overwrites-multiple-blocks-with-the-contents-of-buffer-calling-cb-err-when-done-The-length-of-data-must-be-an-integer-multiple-of-sdcard-BLOCK_SIZE-This-call-is-significantly-more-efficient-than-sdcard-writeBlock-for-any-size-contiguous-writes">#</a> sdcard<b>.writeBlocks</b>( i, data, cb)  
 Starting at the ith block, first erases and then overwrites multiple blocks with the contents of buffer, calling cb(err) when done. The length of data **must** be an integer multiple of sdcard.BLOCK_SIZE. This call is *significantly* more efficient than sdcard.writeBlock for any size contiguous writes.   
 
-**TBD**: expose atomic .modifyBlock helper?
-
 **TBD**: expose how many blocks the card has available!
 
 &#x20;<a href="#api-sdcard-BLOCK_SIZE-currently-this-will-always-be-512-However-for-more-self-documenting-code-or-for-compatibility-with-potential-not-necessarily-planned-a-future-backwards-incompatible-major-version-of-this-code-you-may-wish-to-use-this-property" name="api-sdcard-BLOCK_SIZE-currently-this-will-always-be-512-However-for-more-self-documenting-code-or-for-compatibility-with-potential-not-necessarily-planned-a-future-backwards-incompatible-major-version-of-this-code-you-may-wish-to-use-this-property">#</a> sdcard.<b>BLOCK_SIZE</b>  
@@ -106,9 +104,6 @@ Currently, this will always be 512. However, for more self-documenting code or f
 
 Note that all read/write requests are serialized internally. So it is okay to request a block read immediately after starting a write request to the same block; your read will see the data from your write. *However* note that this serialization is on a request-by-request basis and e.g. if you write updated block data in a read callback **you** are responsible for making sure no other conflicting writes have been queued for that particular block in the meantime!
 
-(**TBD**: No caching is currently done, but individual block writes are very inefficient and so a cache be added in the future. The semantics of the above commands would not change, except that you could not count on the card having the data your callbacks think it has until an explicit request to flush had completed. Likely such a cache would be implemented as a separate wrapper around the core, or at least opt-in; I'll commit to changing the major version number if such a cache were to become the default behavior.)
-
-**TBD**: helper methods that expose partition / FAT modules?
 
 ###License
 © 2014 Nathan Vander Wilt.
