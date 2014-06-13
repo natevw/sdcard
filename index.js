@@ -452,7 +452,6 @@ exports.use = function (port, opts, cb) {
     }
     
     function waitForData(tries, cb) {
-        log(log.DBG, "Waiting for data packet from card.");
         if (!tries) cb(new Error("Timed out waiting for data response."));
         else spi_receive(1, function (e,d) {
             log(log.DBG, "While waiting for data, got", '0x'+d[0].toString(16), "on try", tries);
