@@ -28,5 +28,8 @@
     "parsetition": "^0.1.0",
     "queue-async": "^1.0.7",
     "xok": "^1.0.0"
+  },
+  "devDependencies" : {
+    "tinytap" : "~0.2.0"
   }
 }
