@@ -7,8 +7,28 @@ var tessel = require('tessel');
 var sdcardLib = require('../');
 var sdcard;
 
+/***************************
+Currently untested:
+
+getFilesystems
+
+sdcard.on('inserted')
+sdcard.on('removed')
+
+Options for sdcard.use:
+#getFilesystems
+#waitForCard
+#watchCard
+
+readBlock
+readBlocks
+writeBlock
+writeBlocks
+
+
+***************************/
+
 async.series([
-  // Test connecting
   test('Connecting to module, checking for ready event', function (t) {
     sdcard = sdcardLib.use(tessel.port[portname], function (err, sdcard) {
       t.ok(sdcard, 'The sdcard module object was not returned');
@@ -35,8 +55,30 @@ async.series([
     });
   }),
   
+  test('Testing restart function, should emit ready again', function (t) {
+    // Set up and start timer
+    var timeout = 1000;
+    var readyTimer = setTimeout(function () {
+      t.ok(false, 'failed to emit ready event in a reasonable amount of time');
+      t.end();
+    }, timeout);
+    // Restart
+    sdcard.restart();
+    // Wait for ready event
+    sdcard.on('ready', function () {
+      clearTimeout(readyTimer);
+      sdcard.removeAllListeners('ready');
+      t.ok(true, 'ready was emitted');
+      t.end();
+    });
+  }),
+  
   test('Making sure a card is inserted', function (t) {
     t.ok(sdcard.isPresent(), 'No SD card present. Insert an SD card.');
+  }),
+  
+  test('Checking method getFileSystems', function (t) {
+    var filesystem = sdcard.getFileSystems
   })
   
   ]);
