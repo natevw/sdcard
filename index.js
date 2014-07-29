@@ -8,14 +8,14 @@
 // except according to those terms.
 
 var events = require('events'),
-  fifolock = require('fifolock'),
-  parsetition = require('parsetition'),
-  fatfs = require('fatfs'),
-  queue = require('queue-async'),
-  extend = require('xok');
+    fifolock = require('fifolock'),
+    parsetition = require('parsetition'),
+    fatfs = require('fatfs'),
+    queue = require('queue-async'),
+    extend = require('xok');
 
 var _dbgLevel = 0,//-5;
-  _prevDbg = Date.now();
+    _prevDbg = Date.now();
 
 function log(level) {
   var now = Date.now(), diff = now - _prevDbg;
@@ -39,32 +39,32 @@ log.ERR = -1;
 // and http://wiki.seabright.co.nz/wiki/SdCardProtocol.html
 
 var CMD = {
-  GO_IDLE_STATE: {index:0, format:'r1'},
-  SEND_IF_COND: {index:8, format:'r7'},
-  READ_OCR: {index:58, format:'r3'},
-  STOP_TRANSMISSION: {index:12, format:'r1b'},
-  SET_BLOCKLEN: {index:16, format:'r1'},
-  READ_SINGLE_BLOCK: {index:17, format:'r1'},
-  READ_MULTIPLE_BLOCK: {index:18, format:'r1'},
-  WRITE_BLOCK: {index:24, format:'r1'},
-  WRITE_MULTIPLE_BLOCK: {index:25, format:'r1'},
-  CRC_ON_OFF: {index:59, format:'r1'},
-  
-  APP_CMD: {index:55, format:'r1'},
-  SET_WR_BLOCK_ERASE_COUNT: {app_cmd:true, index:23, format:'r1'},
-  APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
+    GO_IDLE_STATE: {index:0, format:'r1'},
+    SEND_IF_COND: {index:8, format:'r7'},
+    READ_OCR: {index:58, format:'r3'},
+    STOP_TRANSMISSION: {index:12, format:'r1b'},
+    SET_BLOCKLEN: {index:16, format:'r1'},
+    READ_SINGLE_BLOCK: {index:17, format:'r1'},
+    READ_MULTIPLE_BLOCK: {index:18, format:'r1'},
+    WRITE_BLOCK: {index:24, format:'r1'},
+    WRITE_MULTIPLE_BLOCK: {index:25, format:'r1'},
+    CRC_ON_OFF: {index:59, format:'r1'},
+    
+    APP_CMD: {index:55, format:'r1'},
+    SET_WR_BLOCK_ERASE_COUNT: {app_cmd:true, index:23, format:'r1'},
+    APP_SEND_OP_COND: {app_cmd:true, index:41, format:'r1'}
 };
 
 var RESP_LEN = {r1:1, r1b:1, r3:5, r7:5};
 
 var R1_FLAGS = {
-  IDLE_STATE: 0x01,
-  ERASE_RESET: 0x02,
-  ILLEGAL_CMD: 0x04,
-  CRC_ERROR: 0x08,
-  ERASE_SEQ: 0x10,
-  ADDR_ERROR: 0x20,
-  PARAM_ERROR: 0x40
+    IDLE_STATE: 0x01,
+    ERASE_RESET: 0x02,
+    ILLEGAL_CMD: 0x04,
+    CRC_ERROR: 0x08,
+    ERASE_SEQ: 0x10,
+    ADDR_ERROR: 0x20,
+    PARAM_ERROR: 0x40
 };
 
 R1_FLAGS._ANY_ERROR_ = R1_FLAGS.ILLEGAL_CMD | R1_FLAGS.CRC_ERROR | R1_FLAGS.ERASE_SEQ | R1_FLAGS.ADDR_ERROR| R1_FLAGS.PARAM_ERROR;
