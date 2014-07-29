@@ -12,7 +12,7 @@ npm install sdcard
 ```js
 /*********************************************
 This MicroSD card example writes a text file
-to the sd card, then reads the file to the
+to the SD card, then reads the file to the
 console.
 *********************************************/
 

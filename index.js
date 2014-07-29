@@ -75,7 +75,7 @@ var crcTable = function (poly) {
     return table;
 }(0x89);
 // spot check a few values, via http://www.cs.fsu.edu/~baker/devices/lxr/http/source/linux/lib/crc7.c
-if (crcTable[0] !== 0x00 || crcTable[7] !==  0x3f || crcTable[8] !== 0x48 || crcTable[255] !== 0x79) throw Error("Wrong CRC7 table generated!")
+if (crcTable[0] !== 0x00 || crcTable[7] !==  0x3f || crcTable[8] !== 0x48 || crcTable[255] !== 0x79) throw Error("Wrong CRC7 table generated!");
 
 function crcAdd(crc, byte) {
     return crcTable[(crc << 1) ^ byte];
@@ -95,7 +95,7 @@ var crcTable16 = function (poly) {
     return table;
 }(0x1021);
 // spot check a few values, via http://lxr.linux.no/linux+v2.6.32/lib/crc-itu-t.c
-if (crcTable16[0] !== 0x00 || crcTable16[7] !==  0x70e7 || crcTable16[8] !== 0x8108 || crcTable16[255] !== 0x1ef0) throw Error("Wrong CRC16 table generated!")
+if (crcTable16[0] !== 0x00 || crcTable16[7] !==  0x70e7 || crcTable16[8] !== 0x8108 || crcTable16[255] !== 0x1ef0) throw Error("Wrong CRC16 table generated!");
 
 function crcAdd16(crc, byte) {
     return ((crc << 8) ^ crcTable16[((crc >>> 8) ^ byte) & 0xff]) & 0xFFFF;
@@ -581,7 +581,7 @@ exports.use = function (port, opts, cb) {
     card.writeBlocks = function (i, data, cb) {
         if (!ready) throw Error("Wait for 'ready' event before using SD Card!");
         return writeBlocks(i,data,cb);
-    }
+    };
     
     card._modifyBlock = modifyBlock;
     
