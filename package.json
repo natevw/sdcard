@@ -29,7 +29,9 @@
     "queue-async": "^1.0.7",
     "xok": "^1.0.0"
   },
-  "devDependencies" : {
-    "tinytap" : "~0.2.0"
+  "devDependencies": {
+    "async": "^0.9.0",
+    "asynch": "^0.5.2",
+    "tinytap": "^0.2.0"
   }
 }
