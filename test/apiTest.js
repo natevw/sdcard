@@ -10,8 +10,6 @@ var sdcard;
 /***************************
 Currently untested:
 
-getFilesystems
-
 sdcard.on('inserted')
 sdcard.on('removed')
 
@@ -77,8 +75,18 @@ async.series([
     t.ok(sdcard.isPresent(), 'No SD card present. Insert an SD card.');
   }),
   
-  test('Checking method getFileSystems', function (t) {
-    var filesystem = sdcard.getFileSystems
+  test('Checking method getFileSystems, writing and reading back', function (t) {
+    sdcard.getFilesystems(function(err, fss) {
+      var fs = fss[0];
+      var message = 'Hey Tessel SDCard!';
+      fs.writeFile('testFile.txt', message, function(err) {
+        t.equal(err, undefined, 'Error writing to filesystem.');
+        fs.readFile('someFile.txt', function(err, data) {
+          t.equal(err, undefined, 'Error reading from filesystem.');
+          t.equal(data.toString(), message, 'Message read from file did not match message written to file.');
+        });
+      });
+    });
   })
   
   ]);
