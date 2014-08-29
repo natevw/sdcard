@@ -1,5 +1,5 @@
 var tessel = require('tessel'),
-    sdcard = require("./"),
+    sdcard = require("../"),
     queue = require('queue-async'),
     _fat = require('fatfs/test');
 
