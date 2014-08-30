@@ -10,7 +10,12 @@ function h(n, pad) {
 var portname = process.argv[2] || 'A';
 var card = sdcard.use(tessel.port[portname], {watchCard:true});
 
-console.log("Card", (card.isPresent()) ? "present" : "absent", "at startup.");
+var present = card.isPresent();
+console.log("Card", (present) ? "present" : "absent", "at startup.");
+if (!present) {
+  process.exit(1);
+}
+
 card.on('ready', function () {
     console.log("Card now ready!");
 
