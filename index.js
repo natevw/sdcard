@@ -145,7 +145,7 @@ exports.use = function (port, opts, callback) {
   csn.output();
   ppn.input();
   
-  if (callback) card.on('error', callback).on('ready', callback.bind(null, null));
+  if (callback) card.on('error', callback).on('ready', callback.bind(card, null));
   
   var ready, waiting;
   card.restart = function () {
