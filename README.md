@@ -49,7 +49,7 @@ The card driver will normally only fire the 'ready' (or 'error') event once, aft
 Returns (error, array) with the usable filesystems found on the card, ready to use. These filesystems will expose an API similar to the [node.js 'fs' module](http://nodejs.org/api/fs.html). Currently this only supports basic FAT partitions [hosted within](https://github.com/natevw/parsetition) a</i> MBR partition table, and the [fatfs driver](https://github.com/natevw/fatfs) is missing some functionality and lots of test cases. Please tread with caution and [report any issues](https://github.com/natevw/fatfs/issues) you may encounter!  
 
 ###Events
-&#x20;<a href="#api-sdcard-on-ready-callback-error-filesystems" name="api-sdcard-on-ready-callback-error-filesystems">#</a> sdcard<b>.on</b>( 'ready', callback(error, [filesystems]) )  
+&#x20;<a href="#api-sdcard-on-ready-callback-error-filesystems" name="api-sdcard-on-ready-callback-error-filesystems">#</a> sdcard<b>.on</b>( 'ready', callback([filesystems]) )  
 Fired when the card interface has been initialized and is ready to use. If the getFilesystems option was set, this event will wait to fire until with a filesystem list (like that from the sdcard.getFilesystems method) can be provided as its argument.  
 
 &#x20;<a href="#api-sdcard-on-error-callback-error" name="api-sdcard-on-error-callback-error">#</a> sdcard<b>.on</b>( 'error', callback(error) )  
