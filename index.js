@@ -27,6 +27,10 @@ function log(level) {
   }
 }
 
+// HACK/WORKAROUND: https://github.com/tessel/runtime/issues/722
+if (Math.ceil(2.5) === 2) Math.ceil = function (n) { return (n % 1) ? Math.round(n+0.5) : n; };
+
+
 log.DBG = -4;
 log.INFO = -3;
 log.WARN = -2;
