@@ -450,13 +450,13 @@ exports.use = function (port, opts, callback) {
   var BLOCK_SIZE = 512;           // NOTE: code expects this to remain 512 for compatibility w/SDv2+block
   card.BLOCK_SIZE = BLOCK_SIZE;
   
+  var cardType = null;
+    
   function getCardReady(callback) {
     // see http://elm-chan.org/docs/mmc/gx1/sdinit.png
     // and https://www.sdcard.org/downloads/pls/simplified_specs/part1_410.pdf Figure 7-2
     // and http://eet.etec.wwu.edu/morrowk3/code/mmcbb.c
-    
-    var cardType = null;
-    
+
     function checkVoltage(callback) {
       var condValue = 0x1AA;
       sendCommand('SEND_IF_COND', condValue, function (err, d, b) {
