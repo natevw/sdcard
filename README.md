@@ -73,6 +73,9 @@ When true (the default), the library will wait for a card to be physically inser
 &#x20;<a href="#api-watchCard" name="api-watchCard">#</a> <b>watchCard</b>  
 If set to true, your script will never finish but the instance will emit the 'inserted' and 'removed' events as documented above. Defaults to false.  
 
+&#x20;<a href="#api-safeWrites" name="api-safeWrites">#</a> <b>safeWrites</b>  
+Some cards fail on `WRITE_MULTIPLE_BLOCK`, if set to true multiple `WRITE_BLOCK` calls are used instead. This is slower and false by default.
+
 ###Further Examples
 See the examples folder for code.
 
