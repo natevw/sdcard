@@ -138,7 +138,7 @@ exports.use = function (port, opts, callback) {
     getFilesystems: false,
     waitForCard: true,
     watchCard: false,
-    safeWrites: false
+    singleWrites: false
   }, opts);
   
   var card = new events.EventEmitter(),
@@ -687,10 +687,10 @@ exports.use = function (port, opts, callback) {
   }, _nested); }
   
   function writeBlocks(i, data, callback, _nested){
-    if (!opts.safeWrites) {
+    if (!opts.singleWrites) {
        writeBlocksMulti(i, data, callback, _nested);
     } else {
-       writeBlocksSafe(i, data, callback, _nested);
+       writeBlocksSingle(i, data, callback, _nested);
     }
   };
 
@@ -733,7 +733,7 @@ exports.use = function (port, opts, callback) {
   }
   
   // workaround for https://github.com/tessel/sdcard/issues/25
-  function writeBlocksSafe(i, data, callback, _nested) {
+  function writeBlocksSingle(i, data, callback, _nested) {
     if (data.length % BLOCK_SIZE) throw Error("Must write a multiple of "+BLOCK_SIZE+" bytes.");
     var n = (data.length / BLOCK_SIZE);
     function callWriteBlock(j){
