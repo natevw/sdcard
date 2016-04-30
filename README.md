@@ -1,6 +1,8 @@
 #SD Card
 Driver for the sdcard Tessel SD Card module. The hardware documentation for this module can be found [here](https://github.com/tessel/hardware/blob/master/modules-overview.md#micro-sd-card).
 
+This module is *not* compatible with Tessel 2. It is recommended that you use [a USB flash storage device](http://amzn.to/1HZLdML) for Tessel 2.
+
 If you run into any issues you can ask for support on the [SD Card Module Forums](http://forums.tessel.io/category/microsd).
 
 ###Installation
