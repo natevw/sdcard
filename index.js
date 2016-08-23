@@ -137,7 +137,8 @@ exports.use = function (port, opts, callback) {
   opts = extend({
     getFilesystems: false,
     waitForCard: true,
-    watchCard: false
+    watchCard: false,
+    singleWrites: false
   }, opts);
   
   var card = new events.EventEmitter(),
@@ -685,7 +686,15 @@ exports.use = function (port, opts, callback) {
     }, true);
   }, _nested); }
   
-  function writeBlocks(i, data, callback, _nested) {
+  function writeBlocks(i, data, callback, _nested){
+    if (!opts.singleWrites) {
+       writeBlocksMulti(i, data, callback, _nested);
+    } else {
+       writeBlocksSingle(i, data, callback, _nested);
+    }
+  };
+
+  function writeBlocksMulti(i, data, callback, _nested) {
     callback = SPI_TRANSACTION_WRAPPER(callback, function () {
       if (data.length % BLOCK_SIZE) {
         throw Error("Must write a multiple of "+BLOCK_SIZE+" bytes.");
@@ -723,6 +732,23 @@ exports.use = function (port, opts, callback) {
     }, _nested);
   }
   
+  // workaround for https://github.com/tessel/sdcard/issues/25
+  function writeBlocksSingle(i, data, callback, _nested) {
+    if (data.length % BLOCK_SIZE) throw Error("Must write a multiple of "+BLOCK_SIZE+" bytes.");
+    var n = (data.length / BLOCK_SIZE);
+    function callWriteBlock(j){
+      writeBlock(i+j, data.slice(j*BLOCK_SIZE, (j+1)*BLOCK_SIZE), function(err){
+        if (err) {
+          callback(err);
+        } else if (++j < n) {
+          callWriteBlock(j);
+        } else {
+          callback(null);
+        }
+      });
+    }
+    callWriteBlock(0);
+  }
   
   function modifyBlock(i,fn,callback) {
     callback = SPI_TRANSACTION_WRAPPER(callback, function () {
