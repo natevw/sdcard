@@ -1,6 +1,6 @@
 {
   "name": "sdcard",
-  "version": "0.8.8",
+  "version": "0.8.9",
   "description": "Tessel SD module driver",
   "main": "index.js",
   "scripts": {
