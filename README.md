@@ -1,4 +1,4 @@
-#SD Card
+# SD Card
 
 [![Code of Conduct](https://img.shields.io/badge/%E2%9D%A4-code%20of%20conduct-blue.svg?style=flat)](https://github.com/tessel/project/blob/master/CONDUCT.md)
 
@@ -8,12 +8,12 @@ This module is *not* compatible with Tessel 2. It is recommended that you use [a
 
 If you run into any issues you can ask for support on the [SD Card Module Forums](http://forums.tessel.io/category/microsd).
 
-###Installation
+### Installation
 ```sh
 npm install sdcard
 ```
 
-###Example
+### Example
 ```js
 /*********************************************
 This MicroSD card example writes a text file
@@ -40,7 +40,7 @@ sdcard.on('ready', function() {
 });
 ```
 
-###Methods
+### Methods
 &#x20;<a href="#api-var-sdcard-require-sdcard-use-port-options-callback-error" name="api-var-sdcard-require-sdcard-use-port-options-callback-error">#</a> <i>var</i>&nbsp; <b>sdcard</b> = require( 'sdcard').use(port, [options], [callback (error)] )  
 Initialize the card driver with the given Tessel port. You may provide an optional callback taking (err) which will be registered for the ready and error (if error parameter not null) events. Valid flags for the opts argument (which is not required either) are documented below.  
 
@@ -53,7 +53,7 @@ The card driver will normally only fire the 'ready' (or 'error') event once, aft
 &#x20;<a href="#api-sdcard-getFilesystems-callback-error-array" name="api-sdcard-getFilesystems-callback-error-array">#</a> sdcard<b>.getFilesystems</b>( callback (error, array) )  
 Returns (error, array) with the usable filesystems found on the card, ready to use. These filesystems will expose an API similar to the [node.js 'fs' module](http://nodejs.org/api/fs.html). Currently this only supports basic FAT partitions [hosted within](https://github.com/natevw/parsetition) a</i> MBR partition table, and the [fatfs driver](https://github.com/natevw/fatfs) is missing some functionality and lots of test cases. Please tread with caution and [report any issues](https://github.com/natevw/fatfs/issues) you may encounter!  
 
-###Events
+### Events
 &#x20;<a href="#api-sdcard-on-ready-callback-error-filesystems" name="api-sdcard-on-ready-callback-error-filesystems">#</a> sdcard<b>.on</b>( 'ready', callback([filesystems]) )  
 Fired when the card interface has been initialized and is ready to use. If the getFilesystems option was set, this event will wait to fire until with a filesystem list (like that from the sdcard.getFilesystems method) can be provided as its argument.  
 
@@ -66,7 +66,7 @@ If the watchCard option is set, this event will be fired when the card has been 
 &#x20;<a href="#api-sdcard-on-removed-callback" name="api-sdcard-on-removed-callback">#</a> sdcard<b>.on</b>( 'removed', callback() )  
  If the watchCard option is set, this event will be fired when the card has been physically removed.  
 
-###Options for `sdcard.use`
+### Options for `sdcard.use`
 These flags can be provided via an `opts` object to `sdcard.use`:
 
 &#x20;<a href="#api-getFilesystems" name="api-getFilesystems">#</a> <b>getFilesystems</b>  
@@ -81,7 +81,7 @@ If set to true, your script will never finish but the instance will emit the 'in
 &#x20;<a href="#api-singleWrites" name="api-singleWrites">#</a> <b>singleWrites</b>  
 Some cards fail on `WRITE_MULTIPLE_BLOCK`, if set to true multiple `WRITE_BLOCK` calls are used instead. This is slower and false by default.
 
-###Further Examples
+### Further Examples
 See the examples folder for code.
 
 * [Offset Read/Write](https://github.com/tessel/sdcard/blob/master/examples/offset_rw.js) More advanced example of read/write functionality.
@@ -90,8 +90,8 @@ See the examples folder for code.
 
 * [Timed MicroSD](https://github.com/tessel/sdcard/blob/master/examples/timed_microsd.js). This MicroSD card example writes a text file to the sd card, then reads the file to the console. 
 
-###Advanced Information
-####Low level (raw) API
+### Advanced Information
+#### Low level (raw) API
 
 &#x20;<a href="#api-sdcard-readBlock-i-callback-error" name="api-sdcard-readBlock-i-callback-error">#</a> sdcard<b>.readBlock</b>( i, callback (error) )  
 Reads the ith block of data. Callback receives up to two arguments (error, data), note that if error is not null then the value of the data parameter is undetermined.  
@@ -113,7 +113,7 @@ Currently, this will always be 512. However, for more self-documenting code or f
 Note that all read/write requests are serialized internally. So it is okay to request a block read immediately after starting a write request to the same block; your read will see the data from your write. *However* note that this serialization is on a request-by-request basis and e.g. if you write updated block data in a read callback **you** are responsible for making sure no other conflicting writes have been queued for that particular block in the meantime!
 
 
-###License
+### License
 © 2014 Nathan Vander Wilt.
 Funding for this work was provided by Technical Machine, Inc.
 
